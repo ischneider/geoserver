@@ -30,6 +30,7 @@ import org.geowebcache.layer.TileLayerDispatcher;
 
 import com.mockrunner.mock.web.MockHttpServletRequest;
 import com.mockrunner.mock.web.MockHttpServletResponse;
+import org.geoserver.gwc.layer.GeoServerTileLayer;
 
 public class GWCIntegrationTest extends GeoServerTestSupport {
 
@@ -137,6 +138,21 @@ public class GWCIntegrationTest extends GeoServerTestSupport {
         httpReq.setHeader("If-Modified-Since", ifModifiedSince);
         response = dispatch(httpReq, "UTF-8");
         assertEquals(HttpServletResponse.SC_NOT_MODIFIED, response.getErrorCode());
+    }
+
+    public void testDirectWMSIntegrationMaxAge() throws Exception {
+        final GWC gwc = GWC.get();
+        gwc.getConfig().setDirectWMSIntegrationEnabled(true);
+        final String layerName = BASIC_POLYGONS.getPrefix() + ":" + BASIC_POLYGONS.getLocalPart();
+        final String path = buildGetMap(true, layerName, "EPSG:4326", null) + "&tiled=true";
+        final String qualifiedName = super.getLayerId(BASIC_POLYGONS);
+        final GeoServerTileLayer tileLayer = (GeoServerTileLayer) gwc.getTileLayerByName(qualifiedName);
+        tileLayer.getLayerInfo().getMetadata().put("cachingEnabled", Boolean.TRUE);
+        tileLayer.getLayerInfo().getMetadata().put("cacheAgeMax", 3456);
+
+        MockHttpServletResponse response = getAsServletResponse(path);
+        String cacheControl = response.getHeader("Cache-Control");
+        assertEquals("max-age=3456", cacheControl);
     }
 
     public void testDirectWMSIntegrationWithVirtualServices() throws Exception {
