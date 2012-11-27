@@ -136,7 +136,7 @@ class FakeHttpServletResponse implements HttpServletResponse {
     }
 
     public void setStatus(int arg0) {
-        throw new ServletDebugException();
+//        throw new ServletDebugException();
     }
 
     public void setStatus(int arg0, String arg1) {

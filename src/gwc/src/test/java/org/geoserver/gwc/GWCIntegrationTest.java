@@ -30,6 +30,10 @@ import org.geowebcache.layer.TileLayerDispatcher;
 
 import com.mockrunner.mock.web.MockHttpServletRequest;
 import com.mockrunner.mock.web.MockHttpServletResponse;
+import java.io.FileOutputStream;
+import java.util.Enumeration;
+import org.geoserver.gwc.layer.GeoServerTileLayer;
+import org.geotools.geometry.jts.ReferencedEnvelope;
 
 public class GWCIntegrationTest extends GeoServerTestSupport {
 
@@ -78,6 +82,26 @@ public class GWCIntegrationTest extends GeoServerTestSupport {
 
         assertEquals(200, response.getErrorCode());
         assertEquals("image/png", response.getContentType());
+    }
+
+    public void testDirectWMSIntegratonFullWMS() throws Exception {
+        final GWC gwc = GWC.get();
+        gwc.getConfig().setDirectWMSIntegrationEnabled(true);
+
+        final String layerName = BASIC_POLYGONS.getPrefix() + ":" + BASIC_POLYGONS.getLocalPart();
+        String request;
+        MockHttpServletResponse response;
+
+        request = buildGetMapFullWMS(layerName, "EPSG:4326", null) + "&gwc.fullwms";
+        response = getAsServletResponse(request);
+
+        assertEquals(200, response.getStatusCode());
+        assertEquals(layerName, response.getHeader("geowebcache-layer"));
+        assertNull(response.getHeader("geowebcache-tile-index"));
+
+        byte[] junk = new byte[64000];
+        int r = getBinaryInputStream(response).read(junk);
+        new FileOutputStream("farby.png").write(junk,0,r);
     }
 
     public void testDirectWMSIntegrationResponseHeaders() throws Exception {
@@ -293,6 +317,27 @@ public class GWCIntegrationTest extends GeoServerTestSupport {
             sb.append(styles);
         }
         sb.append("&bbox=").append(bounds.toString());
+        return sb.toString();
+    }
+
+    private String buildGetMapFullWMS(final String queryLayerName,
+            final String gridsetId, String styles) {
+        
+        GWC gwc = GWC.get();
+        final GeoServerTileLayer tileLayer = (GeoServerTileLayer) gwc.getTileLayerByName(queryLayerName);
+        final GridSubset gridSubset = tileLayer.getGridSubset(gridsetId);
+
+        StringBuilder sb = new StringBuilder("wms");
+        sb.append("?service=WMS&request=GetMap&version=1.1.1&format=image/png");
+        sb.append("&layers=").append(queryLayerName);
+        sb.append("&srs=").append(gridSubset.getSRS());
+        sb.append("&width=").append(512);
+        sb.append("&height=").append(512);
+        sb.append("&styles=");
+        if (styles != null) {
+            sb.append(styles);
+        }
+        sb.append("&bbox=").append("-181,-90,47,45");
         return sb.toString();
     }
 
