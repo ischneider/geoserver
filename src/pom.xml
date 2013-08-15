@@ -1165,6 +1165,7 @@
    <plugin>
      <groupId>org.apache.maven.plugins</groupId>
      <artifactId>maven-resources-plugin</artifactId>
+     <version>2.6</version>
      <configuration>
        <encoding>UTF-8</encoding>
      </configuration>
@@ -1263,6 +1264,7 @@
 
    <plugin>
 	<artifactId>maven-jar-plugin</artifactId>
+    <version>2.4</version>
 	<executions>
 		<execution>
 			<phase>package</phase>
@@ -1293,6 +1295,7 @@
     <inherited>true</inherited>
     <groupId>org.apache.maven.plugins</groupId>
     <artifactId>maven-source-plugin</artifactId>
+    <version>2.2.1</version>
     <configuration>
      <attach>true</attach>
     </configuration>
@@ -1345,11 +1348,13 @@
    <!-- website -->
    <plugin>
     <artifactId>maven-site-plugin</artifactId>
+    <version>3.0</version>
    </plugin>
 
    <!-- javadoc -->
    <plugin>
     <artifactId>maven-javadoc-plugin</artifactId>
+    <version>2.9</version>
     <configuration>
      <source>1.5</source>
      <version>false</version>
@@ -1406,11 +1411,13 @@
    <!-- basic project information -->
    <plugin>
     <artifactId>maven-project-info-reports-plugin</artifactId>
+    <version>2.4</version>
    </plugin>
 
    <!-- test reports -->
    <plugin>
     <artifactId>maven-surefire-report-plugin</artifactId>
+    <version>2.12</version>
     <configuration>
      <linkXRef>true</linkXRef>
     </configuration>
@@ -1419,6 +1426,7 @@
    <!-- HTML based, cross-reference version of Java source code -->
    <plugin>
     <artifactId>maven-jxr-plugin</artifactId>
+    <version>2.1</version>
     <configuration>
      <aggregate>true</aggregate>
     </configuration>
@@ -1428,6 +1436,7 @@
    <plugin>
     <groupId>org.codehaus.mojo</groupId>
     <artifactId>taglist-maven-plugin</artifactId>
+    <version>2.4</version>
     <configuration>
      <tags>
       <tag>@revisit</tag>
@@ -1442,6 +1451,7 @@
    <plugin>
     <groupId>org.codehaus.mojo</groupId>
     <artifactId>cobertura-maven-plugin</artifactId>
+    <version>2.5.2</version>
     <configuration>
        <formats>
           <format>html</format>
