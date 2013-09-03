@@ -7,7 +7,6 @@ package org.geoserver.importer.rest;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import net.sf.json.JSON;
@@ -20,27 +19,20 @@ import org.apache.commons.httpclient.methods.multipart.MultipartRequestEntity;
 import org.apache.commons.httpclient.methods.multipart.Part;
 import org.geoserver.importer.Directory;
 import org.geoserver.importer.ImportContext;
-import org.geoserver.importer.ImportTask;
 import org.geoserver.importer.ImporterTestSupport;
 
 import com.google.common.collect.Lists;
 import com.mockrunner.mock.web.MockHttpServletRequest;
 import com.mockrunner.mock.web.MockHttpServletResponse;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.util.Collections;
-import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import javax.servlet.Filter;
 
 import org.geoserver.catalog.Catalog;
 import org.geoserver.catalog.DataStoreInfo;
 import org.geoserver.catalog.LayerInfo;
-import org.geoserver.data.test.MockData;
-import org.geoserver.platform.GeoServerExtensions;
 import org.geotools.data.DataStore;
+import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.restlet.data.MediaType;
 
 public class RESTDataTest extends ImporterTestSupport {
@@ -207,6 +199,10 @@ public class RESTDataTest extends ImporterTestSupport {
 
         task = getTask(0, 0);
         assertEquals("READY", task.get("state"));
+        context = importer.getContext(context.getId());
+        ReferencedEnvelope latLonBoundingBox = 
+            context.getTasks().get(0).getLayer().getResource().getLatLonBoundingBox();
+        assertFalse("expected not empty bbox",latLonBoundingBox.isEmpty());
 
         DataStore store = (DataStore) ds.getDataStore(null);
         assertEquals(store.getTypeNames().length, 0);
