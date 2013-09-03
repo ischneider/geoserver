@@ -862,10 +862,8 @@ public class Importer implements DisposableBean, ApplicationListener {
                 FeatureTypeInfo featureType = (FeatureTypeInfo) task.getLayer().getResource();
                 featureType.getAttributes().clear();
 
-                //JD: not sure what the rationale is here... ask IS
-                //if (task.getUpdateMode() == null) {
                 if (!canceled) {
-                    if (task.getUpdateMode() == null) {
+                    if (task.getUpdateMode() == UpdateMode.CREATE) {
                         addToCatalog(task);
                     }
     
@@ -957,7 +955,7 @@ public class Importer implements DisposableBean, ApplicationListener {
         featureType = featureDataConverter.convertType(featureType, format, data, task);
         UpdateMode updateMode = task.getUpdateMode();
         final String uniquifiedFeatureTypeName;
-        if (updateMode == null) {
+        if (updateMode == UpdateMode.CREATE) {
             //find a unique type name in the target store
             uniquifiedFeatureTypeName = findUniqueNativeFeatureTypeName(featureType, store);
             task.setOriginalLayerName(featureTypeName);
