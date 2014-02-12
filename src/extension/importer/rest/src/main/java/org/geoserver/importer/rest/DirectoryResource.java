@@ -62,7 +62,7 @@ public class DirectoryResource extends BaseResource {
     }
 
     @Override
-    public void handleGet() {
+    public void handleGetInternal() {
         Directory dir = lookupDirectory();
         Object response = dir;
 
@@ -84,7 +84,7 @@ public class DirectoryResource extends BaseResource {
     }
 
     @Override
-    public void handlePost() {
+    public void handlePostInternal() {
         MediaType mimeType = getRequest().getEntity().getMediaType();
         if (ARCHIVE_MIME_TYPES.containsKey(mimeType)) {
             try {
@@ -115,7 +115,7 @@ public class DirectoryResource extends BaseResource {
     }
 
     @Override
-    public void handlePut() {
+    public void handlePutInternal() {
         //TODO: this only handles granule timestamps at the moment, expand to handle more
         JSONObject obj = (JSONObject) getFormatPostOrPut().toObject(getRequest().getEntity());
         FileData file = lookupFile();
@@ -145,7 +145,8 @@ public class DirectoryResource extends BaseResource {
         return allowPut();
     }
 
-    public void handleDelete() {
+    @Override
+    public void handleDeleteInternal() {
         Directory dir = lookupDirectory();
         FileData file = lookupFile();
 

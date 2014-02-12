@@ -9,8 +9,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.geoserver.catalog.Catalog;
 import org.geoserver.catalog.CatalogBuilder;
@@ -21,7 +19,6 @@ import org.geoserver.catalog.impl.StoreInfoImpl;
 import org.geoserver.rest.RestletException;
 import org.geoserver.rest.format.DataFormat;
 import org.geoserver.rest.format.StreamDataFormat;
-import org.geotools.util.logging.Logging;
 import org.geoserver.importer.ImportTask;
 import org.geoserver.importer.Importer;
 import org.restlet.data.MediaType;
@@ -30,8 +27,6 @@ import org.restlet.data.Response;
 import org.restlet.data.Status;
 
 public class TaskTargetResource extends BaseResource {
-
-    static Logger LOGGER = Logging.getLogger(TaskTargetResource.class);
 
     public TaskTargetResource(Importer importer) {
         super(importer);
@@ -44,7 +39,7 @@ public class TaskTargetResource extends BaseResource {
     }
 
     @Override
-    public void handleGet() {
+    public void handleGetInternal() {
         ImportTask task = task();
         if (task.getStore() == null) {
             getResponse().setStatus(Status.CLIENT_ERROR_NOT_FOUND, "Task has no target store");
@@ -60,7 +55,7 @@ public class TaskTargetResource extends BaseResource {
     }
 
     @Override
-    public void handlePut() {
+    public void handlePutInternal() {
         ImportTask task = task();
         if (task.getStore() == null) {
             getResponse().setStatus(Status.CLIENT_ERROR_NOT_FOUND, "Task has no target store");
