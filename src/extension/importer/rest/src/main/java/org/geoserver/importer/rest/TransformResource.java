@@ -35,7 +35,8 @@ public class TransformResource extends BaseResource {
                 new TransformJSONFormat(MediaType.TEXT_HTML));
     }
 
-    public void handleGet() {
+    @Override
+    public void handleGetInternal() {
         Object result = transform(true);
         if (result == null) {
             result = task().getTransform();
@@ -51,7 +52,7 @@ public class TransformResource extends BaseResource {
     }
 
     @Override
-    public void handlePost() {
+    public void handlePostInternal() {
         ImportTransform tx = 
             (ImportTransform) getFormatPostOrPut().toObject(getRequest().getEntity());
         ImportTask task = task();
@@ -69,7 +70,7 @@ public class TransformResource extends BaseResource {
     }
 
     @Override
-    public void handlePut() {
+    public void handlePutInternal() {
         ImportTransform orig = transform(false);
         ImportTransform tx = 
                 (ImportTransform) getFormatPostOrPut().toObject(getRequest().getEntity());
@@ -86,7 +87,7 @@ public class TransformResource extends BaseResource {
     }
 
     @Override
-    public void handleDelete() {
+    public void handleDeleteInternal() {
         ImportTask task = task();
         ImportTransform tx = transform(false);
         boolean result = task.getTransform().remove(tx);

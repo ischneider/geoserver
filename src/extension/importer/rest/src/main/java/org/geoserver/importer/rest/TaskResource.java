@@ -9,10 +9,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.MalformedURLException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import net.sf.json.JSONException;
 import net.sf.json.JSONObject;
@@ -59,7 +61,7 @@ public class TaskResource extends BaseResource {
     }
 
     @Override
-    public void handleGet() {
+    public void handleGetInternal() {
         if (getRequest().getResourceRef().getLastSegment().equals("progress")) {
             getResponse().setEntity(createProgressRepresentation());
         }
@@ -78,7 +80,8 @@ public class TaskResource extends BaseResource {
         return getAttribute("task") == null;
     }
 
-    public void handlePost() {
+    @Override
+    public void handlePostInternal() throws IOException {
         ImportData data = null;
 
         getLogger().info("Handling POST of " + getRequest().getEntity().getMediaType());
@@ -98,19 +101,11 @@ public class TaskResource extends BaseResource {
         acceptData(data);
     }
 
-    private void acceptData(ImportData data) {
+    private void acceptData(ImportData data) throws IOException {
         ImportContext context = context();
-        List<ImportTask> newTasks = null;
-        try {
-            newTasks = importer.update(context, data);
+        List<ImportTask> newTasks = importer.update(context, data);
             //importer.prep(context);
             //context.updated();
-        } catch (ValidationException ve) {
-            throw ImportJSONWriter.badRequest(ve.getMessage());
-        } catch (IOException e) {
-            throw new RestletException("Error updating context", Status.SERVER_ERROR_INTERNAL, e);
-        }
-
         if (!newTasks.isEmpty()) {
             Object result = newTasks;
             if (newTasks.size() == 1) {
@@ -123,35 +118,25 @@ public class TaskResource extends BaseResource {
             getResponse().setEntity(getFormatGet().toRepresentation(result));
             getResponse().setStatus(Status.SUCCESS_CREATED);
         }
-
     }
 
-    private Directory findOrCreateDirectory(ImportContext context) {
+    private Directory findOrCreateDirectory(ImportContext context) throws IOException {
         if (context.getData() instanceof Directory) {
             return (Directory) context.getData();
         }
     
-        try {
-            return Directory.createNew(importer.getUploadRoot());
-        } catch (IOException ioe) {
-            throw new RestletException("File upload failed", Status.SERVER_ERROR_INTERNAL, ioe);
-        }
+        return Directory.createNew(importer.getUploadRoot());
     }
     
-    private ImportData handleFileUpload(ImportContext context) {
+    private ImportData handleFileUpload(ImportContext context) throws IOException {
         Directory directory = findOrCreateDirectory(context);
 
-        try {
-            directory.accept(getAttribute("task"),getRequest().getEntity().getStream());
-        } catch (IOException e) {
-            throw new RestletException("Error unpacking file", 
-                Status.SERVER_ERROR_INTERNAL, e);
-        }
+        directory.accept(getAttribute("task"),getRequest().getEntity().getStream());
         
         return directory;
     }
     
-    private ImportData handleMultiPartFormUpload(ImportContext context) {
+    private ImportData handleMultiPartFormUpload(ImportContext context) throws IOException {
         DiskFileItemFactory factory = new DiskFileItemFactory();
         // @revisit - this appears to be causing OOME
         //factory.setSizeThreshold(102400000);
@@ -161,7 +146,7 @@ public class TaskResource extends BaseResource {
         try {
             items = upload.parseRequest(getRequest());
         } catch (FileUploadException e) {
-            throw new RestletException("File upload failed", Status.SERVER_ERROR_INTERNAL, e);
+            throw new IOException("Error handling file upload", e);
         }
 
         //look for a directory to hold the files
@@ -172,11 +157,7 @@ public class TaskResource extends BaseResource {
             if (item.getName() == null) {
                 continue;
             }
-            try {
-                directory.accept(item);
-            } catch (Exception ex) {
-                throw new RestletException("Error writing file " + item.getName(), Status.SERVER_ERROR_INTERNAL, ex);
-            }
+            directory.accept(item);
         }
         return directory;
     }
@@ -185,7 +166,8 @@ public class TaskResource extends BaseResource {
         return getAttribute("task") != null;
     }
 
-    public void handlePut() {
+    @Override
+    public void handlePutInternal() throws IOException {
         if (getRequest().getEntity().getMediaType().equals(MediaType.APPLICATION_JSON)) {
             handleTaskPut();
         } else {
@@ -198,7 +180,7 @@ public class TaskResource extends BaseResource {
     }
 
     @Override
-    public void handleDelete() {
+    public void handleDeleteInternal() {
         ImportTask task = (ImportTask) lookupTask(false);
         task.getContext().removeTask(task);
         importer.changed(task.getContext());
@@ -247,7 +229,7 @@ public class TaskResource extends BaseResource {
         if (task.getLayer() != null) {
             change = true;
             //now handled by LayerResource, but handle here for backwards compatability
-            LayerResource.updateLayer(orig, task.getLayer(), importer);
+            new LayerResource(importer).updateLayer(orig, task.getLayer());
         }
 
         TransformChain chain = task.getTransform();
@@ -264,7 +246,7 @@ public class TaskResource extends BaseResource {
         }
     }
     
-    private ImportData handleFormPost() {
+    private ImportData handleFormPost() throws IOException {
         Form form = getRequest().getEntityAsForm();
         String url = form.getFirstValue("url", null);
         if (url == null) {
@@ -280,21 +262,16 @@ public class TaskResource extends BaseResource {
         if (location == null || !location.getProtocol().equalsIgnoreCase("file")) {
             throw new RestletException("Invalid url in request", Status.CLIENT_ERROR_BAD_REQUEST);
         }
-        FileData file;
+        String local;
         try {
-            file = FileData.createFromFile(new File(location.toURI().getPath()));
-        } catch (Exception ex) {
-            throw new RuntimeException("Unexpected exception", ex);
+            local = location.toURI().getPath();
+        } catch (URISyntaxException ex) {
+            throw new RuntimeException("unexpected error");
         }
+        FileData file = FileData.createFromFile(new File(local));
 
         if (file instanceof Directory) {
-            try {
-                file.prepare();
-            } catch (IOException ioe) {
-                String msg = "Error processing file: " + file.getFile().getAbsolutePath();
-                getLogger().log(Level.WARNING, msg, ioe);
-                throw new RestletException(msg, Status.SERVER_ERROR_INTERNAL);
-            }
+            file.prepare();
         }
 
         return file;
