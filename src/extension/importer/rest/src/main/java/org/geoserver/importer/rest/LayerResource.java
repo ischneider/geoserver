@@ -10,7 +10,6 @@ import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.logging.Logger;
 
 import org.geoserver.catalog.CatalogBuilder;
 import org.geoserver.catalog.LayerInfo;
@@ -20,7 +19,6 @@ import org.geoserver.rest.RestletException;
 import org.geoserver.rest.format.DataFormat;
 import org.geoserver.rest.format.StreamDataFormat;
 import org.geotools.referencing.CRS;
-import org.geotools.util.logging.Logging;
 import org.geoserver.importer.ImportTask;
 import org.geoserver.importer.Importer;
 import org.opengis.referencing.FactoryException;
@@ -33,8 +31,6 @@ import org.restlet.data.Status;
 
 public class LayerResource extends BaseResource {
 
-    static Logger LOGGER = Logging.getLogger(LayerResource.class);
-
     public LayerResource(Importer importer) {
         super(importer);
     }
@@ -46,7 +42,7 @@ public class LayerResource extends BaseResource {
     }
 
     @Override
-    public void handleGet() {
+    public void handleGetInternal() {
         ImportTask task = task();
         getResponse().setEntity(getFormatGet().toRepresentation(task.getLayer()));
     }
@@ -57,19 +53,19 @@ public class LayerResource extends BaseResource {
     }
 
     @Override
-    public void handlePut() {
+    public void handlePutInternal() {
         ImportTask task = task();
 
         LayerInfo layer = (LayerInfo) getFormatPostOrPut().toObject(getRequest().getEntity());
         
-        updateLayer(task, layer, importer);
+        updateLayer(task, layer);
         importer.changed(task);
 
         getResponse().setStatus(Status.SUCCESS_ACCEPTED);
         getResponse().setEntity(getFormatGet().toRepresentation(task()));
     }
     
-    static void updateLayer(ImportTask orig, LayerInfo l, Importer importer) {
+    void updateLayer(ImportTask orig, LayerInfo l) {
         //update the original layer and resource from the new
 
         ResourceInfo r = l.getResource();

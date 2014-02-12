@@ -21,7 +21,6 @@ import org.geoserver.rest.format.StreamDataFormat;
 import org.geoserver.importer.ImportContext;
 import org.geoserver.importer.ImportFilter;
 import org.geoserver.importer.Importer;
-import org.geoserver.importer.ValidationException;
 import org.restlet.data.Form;
 import org.restlet.data.MediaType;
 import org.restlet.data.Request;
@@ -36,8 +35,6 @@ import org.restlet.data.Status;
  */
 public class ImportResource extends BaseResource {
 
-    Object importContext; // ImportContext or Iterator<ImportContext>
-
     public ImportResource(Importer importer) {
         super(importer);
     }
@@ -49,7 +46,7 @@ public class ImportResource extends BaseResource {
     }
 
     @Override
-    public void handleGet() {
+    public void handleGetInternal() {
         DataFormat formatGet = getFormatGet();
         if (formatGet == null) {
             formatGet = new ImportContextJSONFormat(MediaType.APPLICATION_JSON);
@@ -76,7 +73,7 @@ public class ImportResource extends BaseResource {
     @Override
     public boolean allowDelete() {
         boolean allowDelete = false;
-        importContext = lookupContext(true, false);
+        Object importContext = lookupContext(true, false);
         if (importContext instanceof ImportContext) {
             ImportContext ctx = (ImportContext) importContext;
             allowDelete = ctx.getState() != ImportContext.State.COMPLETE;
@@ -87,8 +84,9 @@ public class ImportResource extends BaseResource {
     }
 
     @Override
-    public void handleDelete() {
-        Iterator<ImportContext> contexts = null;
+    public void handleDeleteInternal() {
+        Object importContext = lookupContext(true, false);
+        Iterator<ImportContext> contexts;
         if (importContext instanceof ImportContext) {
             contexts = Collections.singletonList((ImportContext) importContext).iterator();
         } else {
@@ -185,20 +183,12 @@ public class ImportResource extends BaseResource {
     }
     
     @Override
-    public void handlePost() {
+    public void handlePostInternal() throws IOException {
         Object obj = lookupContext(true, true);
         ImportContext context = null;
         if (obj instanceof ImportContext) {
             //run an existing import
-            try {
-                runImport((ImportContext) obj);
-            } catch (Throwable t) {
-                if (t instanceof ValidationException) {
-                    throw new RestletException(t.getMessage(), Status.CLIENT_ERROR_BAD_REQUEST, t);
-                } else {
-                    throw new RestletException("Error occured executing import", Status.SERVER_ERROR_INTERNAL, t);
-                }
-            }
+            runImport((ImportContext) obj);
         }
         else {
             context = createImport(null);
@@ -209,7 +199,7 @@ public class ImportResource extends BaseResource {
     }
 
     @Override
-    public void handlePut() {
+    public void handlePutInternal() {
         // allow the client to specify an id - this will move the sequence forward
         String i = getAttribute("import");
         if (i != null) {
