@@ -104,6 +104,15 @@ public abstract class DataFormat implements Serializable {
         return null;
     }
 
+    /**
+     * Allow a file format to unpack itself. Most formats will not need to
+     * implement this.
+     * @param file
+     */
+    public void unpack(File file) throws IOException {
+        // no-op
+    }
+
     public abstract String getName();
 
     public abstract boolean canRead(ImportData data) throws IOException;
