@@ -43,6 +43,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Point;
+import org.apache.commons.io.FileUtils;
 
 
 public class ImporterDataTest extends ImporterTestSupport {
@@ -614,6 +615,27 @@ public class ImporterDataTest extends ImporterTestSupport {
         FeatureSource<? extends FeatureType, ? extends Feature> featureSource = fti
                 .getFeatureSource(null, null);
         assertEquals("Unexpected feature count", 20, featureSource.getCount(Query.ALL));
+    }
+
+    @Test
+    public void testImportKMZCorrectLayerName() throws Exception {
+        // @todo use a smaller sample
+        File dir = unpack("kml/sample.zip");
+        // mimic the behavior of Directory unpack + KMLFileFormat
+        File kmzDir = new File(dir, "mcsample.kmz");
+        kmzDir.mkdir();
+        File doc = new File(kmzDir,"doc.kml");
+        FileUtils.moveFile(new File(dir, "sample.kml"), doc);
+        String wsName = getCatalog().getDefaultWorkspace().getName();
+        DataStoreInfo h2DataStore = createH2DataStore(wsName, "kmltest");
+        // doc lives within the kmzDir and KMLFileFormat knows about this
+        SpatialFile importData = new SpatialFile(doc);
+        ImportContext context = importer.createContext(importData, h2DataStore);
+        assertEquals(1, context.getTasks().size());
+        ImportTask task = context.getTasks().get(0);
+
+        LayerInfo layer = task.getLayer();
+        assertEquals("mcsample", layer.getName());
     }
 
     @Test

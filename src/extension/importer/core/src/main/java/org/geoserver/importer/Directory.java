@@ -88,14 +88,22 @@ public class Directory extends FileData {
     }
 
     public void unpack(File file) throws IOException {
-        //if the file is an archive, unpack it
-        VFSWorker vfs = new VFSWorker();
-        if (vfs.canHandle(file)) {
-            LOGGER.fine("unpacking " + file.getAbsolutePath() + " to " + this.file.getAbsolutePath());
-            vfs.extractTo(file, this.file);
+        DataFormat fileFormat = DataFormat.lookup(file);
+        // if unrecognized, try to unpack, otherwise skip and let the
+        // format itself do what it needs. This is important for KMZ as
+        // we want to use the kmz basename for the layer.
+        if (fileFormat == null) {
+            //if the file is an archive, unpack it
+            VFSWorker vfs = new VFSWorker();
+            if (vfs.canHandle(file)) {
+                LOGGER.fine("unpacking " + file.getAbsolutePath() + " to " + this.file.getAbsolutePath());
+                vfs.extractTo(file, this.file);
 
-            LOGGER.fine("deleting " + file.getAbsolutePath());
-            file.delete();
+                LOGGER.fine("deleting " + file.getAbsolutePath());
+                file.delete();
+            }
+        } else {
+            fileFormat.unpack(file);
         }
     }
     
