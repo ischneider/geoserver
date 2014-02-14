@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import java.util.zip.ZipFile;
 import org.apache.commons.io.FilenameUtils;
 import org.geoserver.catalog.AttributeTypeInfo;
 import org.geoserver.catalog.Catalog;
@@ -28,22 +29,28 @@ import org.geoserver.catalog.MetadataMap;
 import org.geoserver.catalog.ResourceInfo;
 import org.geoserver.catalog.StoreInfo;
 import org.geoserver.catalog.WorkspaceInfo;
+import org.geoserver.importer.FileData;
+import org.geoserver.importer.ImportData;
+import org.geoserver.importer.ImportTask;
+import org.geoserver.importer.VFSWorker;
+import org.geoserver.importer.VectorFormat;
+import org.geoserver.importer.job.ProgressMonitor;
+import org.geoserver.importer.transform.KMLPlacemarkTransform;
 import org.geotools.data.FeatureReader;
 import org.geotools.feature.simple.SimpleFeatureTypeBuilder;
 import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.geotools.referencing.CRS;
-import org.geoserver.importer.FileData;
-import org.geoserver.importer.ImportData;
-import org.geoserver.importer.ImportTask;
-import org.geoserver.importer.VectorFormat;
-import org.geoserver.importer.job.ProgressMonitor;
-import org.geoserver.importer.transform.KMLPlacemarkTransform;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.feature.type.AttributeDescriptor;
 import org.opengis.feature.type.FeatureType;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 
+/**
+ * Implementation notes: to deal with KMZ correctly, the KMZ must be unzipped
+ * into a directory with a name ending in '.kmz'. {@link #unpack(File)} will
+ * do this, deleting the original kmz.
+ */
 public class KMLFileFormat extends VectorFormat {
 
     /** serialVersionUID */
@@ -130,7 +137,20 @@ public class KMLFileFormat extends VectorFormat {
     @Override
     public boolean canRead(ImportData data) throws IOException {
         File file = getFileFromData(data);
-        return file.canRead() && "kml".equalsIgnoreCase(FilenameUtils.getExtension(file.getName()));
+        String extension = FilenameUtils.getExtension(file.getName());
+        boolean canRead = false;
+        if ("kml".equalsIgnoreCase(extension)) {
+            canRead = file.canRead();
+        } else if ("kmz".equalsIgnoreCase(extension)) {
+            try {
+                ZipFile zipFile = new ZipFile(file);
+                zipFile.close();
+                canRead = true;
+            } catch (Exception ex) {
+                // not zip file
+            }
+        }
+        return canRead;
     }
 
     private File getFileFromData(ImportData data) {
@@ -289,6 +309,35 @@ public class KMLFileFormat extends VectorFormat {
     }
 
     private String typeNameFromFile(File file) {
+        String parentExt = FilenameUtils.getExtension(file.getParent());
+        // if the doc.kml is in a directory ending w/ kmz, take that directory name
+        // so the featuretype doesn't end up as 'doc'.
+        if ("kmz".equalsIgnoreCase(parentExt)) {
+            file = file.getParentFile();
+        }
         return FilenameUtils.getBaseName(file.getName());
+    }
+
+    /**
+     * If needed, unpack a KMZ to a directory of the same name, deleting the
+     * original KMZ.
+     * @param file
+     * @throws IOException
+     */
+    @Override
+    public void unpack(File file) throws IOException {
+        String extension = FilenameUtils.getExtension(file.getName());
+        if ("kmz".equalsIgnoreCase(extension)) {
+            File parent = file.getCanonicalFile().getParentFile();
+            // prefix the temp file or VFSWorker will get tripped up
+            File tmp = new File(parent, "tmp" + file.getName());
+            if (!file.renameTo(tmp)) {
+                throw new IOException("Unable to create temp file for unpacking kmz");
+            }
+            file.mkdir();
+            VFSWorker vfs = new VFSWorker();
+            vfs.extractTo(tmp, file);
+            tmp.delete();
+        }
     }
 }

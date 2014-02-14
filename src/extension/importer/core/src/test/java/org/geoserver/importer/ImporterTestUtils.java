@@ -5,10 +5,13 @@
 package org.geoserver.importer;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URL;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
+import org.apache.commons.io.FilenameUtils;
 
 import org.apache.commons.io.IOUtils;
 import org.geotools.factory.Hints;
@@ -47,7 +50,11 @@ public class ImporterTestUtils {
     }
     
     public static  File file(String path, File dir) throws IOException {
-        String filename = new File(path).getName();
+        // allow for specifying ad-hoc non-resource files in tests
+        File f = new File(path);
+        if (f.exists()) return f;
+
+        String filename = f.getName();
         InputStream in = ImporterTestSupport.class.getResourceAsStream("test-data/" + path);
         
         File file = new File(dir, filename);
@@ -59,6 +66,45 @@ public class ImporterTestUtils {
         out.close();
     
         return file;
+    }
+
+    /**
+     * Resolve a path to a stream. If the path exists, return that, otherwise
+     * attempt to resolve a test-data path.
+     */
+    private static InputStream stream(String path) throws IOException {
+        InputStream is;
+        File f = new File(path);
+        // support ad-hoc non-resource files in tests
+        if (f.exists()) {
+            is = new FileInputStream(f);
+        } else {
+            is = ImporterTestSupport.class.getResourceAsStream("test-data/" + path);
+        }
+        return is;
+    }
+
+    /**
+     * Create a file KMZ with the specified contents.
+     * @param parent directory to place KMZ
+     * @param name name of the KMZ file (without extension)
+     * @param kmlPath path to the KML to include
+     * @param other other files to include
+     * @return
+     * @throws IOException
+     */
+    public static File createKMZ(File parent, String name, String kmlPath, String... other) throws IOException {
+        File dest = new File(parent, name + ".kmz");
+        ZipOutputStream zout = new ZipOutputStream(new FileOutputStream(dest));
+        zout.putNextEntry(new ZipEntry("doc.kml"));
+        IOUtils.copy(stream(kmlPath), zout);
+        for (int i = 0; i < other.length; i++) {
+            String oname = FilenameUtils.getName(other[i]);
+            zout.putNextEntry(new ZipEntry(oname));
+            IOUtils.copy(stream(other[i]), zout);
+        }
+        zout.close();
+        return dest;
     }
 
 }

@@ -12,10 +12,8 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.lang.StringUtils;
@@ -24,8 +22,6 @@ import org.geoserver.catalog.DataStoreInfo;
 import org.geoserver.catalog.FeatureTypeInfo;
 import org.geoserver.catalog.LayerInfo;
 import org.geoserver.catalog.ResourceInfo;
-import org.geoserver.catalog.StoreInfo;
-import org.geoserver.catalog.StyleInfo;
 import org.geoserver.importer.ImportTask.State;
 import org.geoserver.importer.transform.AbstractInlineVectorTransform;
 import org.geoserver.importer.transform.AttributesToPointGeometryTransform;
@@ -37,7 +33,6 @@ import org.geotools.data.h2.H2DataStoreFactory;
 import org.geotools.feature.FeatureCollection;
 import org.geotools.feature.FeatureIterator;
 import org.geotools.geometry.jts.ReferencedEnvelope;
-import org.junit.After;
 import org.junit.Test;
 import org.opengis.feature.Feature;
 import org.opengis.feature.simple.SimpleFeature;
@@ -49,6 +44,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Point;
+import org.apache.commons.io.FileUtils;
 
 
 public class ImporterDataTest extends ImporterTestSupport {
@@ -620,6 +616,27 @@ public class ImporterDataTest extends ImporterTestSupport {
         FeatureSource<? extends FeatureType, ? extends Feature> featureSource = fti
                 .getFeatureSource(null, null);
         assertEquals("Unexpected feature count", 20, featureSource.getCount(Query.ALL));
+    }
+
+    @Test
+    public void testImportKMZCorrectLayerName() throws Exception {
+        // @todo use a smaller sample
+        File dir = unpack("kml/sample.zip");
+        // mimic the behavior of Directory unpack + KMLFileFormat
+        File kmzDir = new File(dir, "mcsample.kmz");
+        kmzDir.mkdir();
+        File doc = new File(kmzDir,"doc.kml");
+        FileUtils.moveFile(new File(dir, "sample.kml"), doc);
+        String wsName = getCatalog().getDefaultWorkspace().getName();
+        DataStoreInfo h2DataStore = createH2DataStore(wsName, "kmltest");
+        // doc lives within the kmzDir and KMLFileFormat knows about this
+        SpatialFile importData = new SpatialFile(doc);
+        ImportContext context = importer.createContext(importData, h2DataStore);
+        assertEquals(1, context.getTasks().size());
+        ImportTask task = context.getTasks().get(0);
+
+        LayerInfo layer = task.getLayer();
+        assertEquals("mcsample", layer.getName());
     }
 
     @Test

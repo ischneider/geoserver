@@ -40,6 +40,7 @@ import org.restlet.data.MediaType;
 import com.google.common.collect.Lists;
 import com.mockrunner.mock.web.MockHttpServletRequest;
 import com.mockrunner.mock.web.MockHttpServletResponse;
+import static org.junit.Assert.fail;
 
 public class RESTDataTest extends ImporterTestSupport {
 
@@ -459,7 +460,11 @@ public class RESTDataTest extends ImporterTestSupport {
         req.setBodyContent(payload);
 
         MockHttpServletResponse resp = dispatch(req);
-        assertEquals(201, resp.getStatusCode());
+        if (resp.getStatusCode() != 201) {
+            // since we read the stream, build the assert message after checking status
+            String msg = "expected 201, got " + resp.getStatusCode() + " : " + resp.getOutputStreamContent();
+            fail(msg);
+        }
         assertNotNull( resp.getHeader( "Location") );
 
         assertTrue(resp.getHeader("Location").matches(".*/imports/"+imp+"/tasks/\\d"));

@@ -4,6 +4,7 @@
  */
 package org.geoserver.importer.format;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -11,6 +12,7 @@ import java.util.Map;
 import junit.framework.TestCase;
 
 import org.apache.commons.io.IOUtils;
+import org.geoserver.importer.ImporterTestUtils;
 import org.geotools.data.FeatureReader;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
@@ -23,6 +25,17 @@ public class KMLFileFormatTest extends TestCase {
     @Override
     protected void setUp() throws Exception {
         kmlFileFormat = new KMLFileFormat();
+    }
+
+    public void testUnpack() throws Exception {
+        File unpack = ImporterTestUtils.tmpDir();
+        File kml = new File(unpack, "kml.kml"); // we don't need a valid file
+        kml.createNewFile();
+        File kmz = ImporterTestUtils.createKMZ(unpack, "sample", kml.getAbsolutePath());
+        kmlFileFormat.unpack(kmz);
+        File unpackDir = new File(unpack, "sample.kmz");
+        assertTrue(unpackDir.isDirectory());
+        assertTrue(new File(unpackDir, "doc.kml").isFile());
     }
 
     public void testParseFeatureTypeNoPlacemarks() throws IOException {
