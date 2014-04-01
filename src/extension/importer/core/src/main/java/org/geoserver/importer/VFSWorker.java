@@ -134,7 +134,8 @@ public class VFSWorker {
             return "file://";
         }
         String name = file.getName().toLowerCase();
-        if (name.endsWith(".zip") || name.endsWith(".kmz")) {
+        // allow kmz and kml files to be treated as zip (yes, kml, too)
+        if (name.endsWith(".zip") || name.endsWith(".kmz") || name.endsWith("kml")) {
             return "zip://";
         }
         if (name.endsWith(".tar")) {

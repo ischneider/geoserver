@@ -6,9 +6,9 @@ package org.geoserver.importer.format;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 
 import org.geotools.data.FeatureReader;
-import org.geoserver.importer.transform.KMLPlacemarkTransform;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 
@@ -19,7 +19,7 @@ public class KMLTransformingFeatureReader implements
 
     private final FeatureReader<SimpleFeatureType, SimpleFeature> reader;
 
-    private static final KMLPlacemarkTransform placemarkTransformer = new KMLPlacemarkTransform();
+    private final KMLPlacemarkTransform placemarkTransformer;
 
     public KMLTransformingFeatureReader(SimpleFeatureType featureType, InputStream inputStream) {
         this(featureType, new KMLRawFeatureReader(inputStream, featureType));
@@ -27,6 +27,7 @@ public class KMLTransformingFeatureReader implements
 
     public KMLTransformingFeatureReader(SimpleFeatureType featureType,
             FeatureReader<SimpleFeatureType, SimpleFeature> reader) {
+        placemarkTransformer = new KMLPlacemarkTransform(featureType);
         this.featureType = featureType;
         this.reader = reader;
     }
@@ -53,13 +54,16 @@ public class KMLTransformingFeatureReader implements
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-        SimpleFeature transformedFeature = placemarkTransformer
-                .convertFeature(feature, featureType);
+        SimpleFeature transformedFeature = placemarkTransformer.convertFeature(feature);
         return transformedFeature;
     }
 
     @Override
     public void close() throws IOException {
         reader.close();
+    }
+
+    public void setRewritePaths(String prefix, List<String> paths) {
+        placemarkTransformer.setRewritePaths(prefix, paths);
     }
 }

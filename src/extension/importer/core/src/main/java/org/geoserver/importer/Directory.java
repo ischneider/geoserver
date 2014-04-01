@@ -169,6 +169,7 @@ public class Directory extends FileData {
                     // are all hidden files anyway
                     if (!"__MACOSX".equals(f.getName())) {
                         Directory d = new Directory(f);
+                        d.setOptions(options);
                         d.prepare(m);
 
                         files.add(d);
@@ -188,6 +189,8 @@ public class Directory extends FileData {
 
                 if (format != null) {
                     SpatialFile sf = newSpatialFile(f, format);
+
+                    sf.setOptions(options);
                     
                     //gather up the related files
                     sf.prepare(m);

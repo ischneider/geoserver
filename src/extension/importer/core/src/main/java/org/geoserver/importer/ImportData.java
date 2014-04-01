@@ -4,8 +4,13 @@
  */
 package org.geoserver.importer;
 
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import org.geoserver.importer.job.ProgressMonitor;
 
@@ -32,6 +37,11 @@ public abstract class ImportData implements Serializable{
      * message associated with the data, usually for error reporting.
      */
     String message;
+
+    /**
+     * import options related to how this data is initially interpreted.
+     */
+    List<String> options;
 
     public ImportData() {
     }
@@ -63,6 +73,14 @@ public abstract class ImportData implements Serializable{
 
     public void setMessage(String message) {
         this.message = message;
+    }
+
+    public List<String> getOptions() {
+        return options == null ? Collections.EMPTY_LIST : options;
+    }
+
+    public void setOptions(List<String> options) {
+        this.options = options;
     }
 
     /**

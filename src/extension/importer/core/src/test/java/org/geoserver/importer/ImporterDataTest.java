@@ -4,17 +4,16 @@
  */
 package org.geoserver.importer;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
+import com.google.common.base.Predicate;
+import com.google.common.collect.Iterables;
+import com.vividsolutions.jts.geom.Coordinate;
+import com.vividsolutions.jts.geom.Point;
 import java.io.File;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.StringUtils;
 import org.geoserver.catalog.Catalog;
 import org.geoserver.catalog.DataStoreInfo;
@@ -22,6 +21,7 @@ import org.geoserver.catalog.FeatureTypeInfo;
 import org.geoserver.catalog.LayerInfo;
 import org.geoserver.catalog.ResourceInfo;
 import org.geoserver.importer.ImportTask.State;
+import org.geoserver.importer.format.KMLFileFormat;
 import org.geoserver.importer.transform.AbstractInlineVectorTransform;
 import org.geoserver.importer.transform.AttributesToPointGeometryTransform;
 import org.geoserver.importer.transform.TransformChain;
@@ -32,6 +32,20 @@ import org.geotools.data.h2.H2DataStoreFactory;
 import org.geotools.feature.FeatureCollection;
 import org.geotools.feature.FeatureIterator;
 import org.geotools.geometry.jts.ReferencedEnvelope;
+import org.geotools.styling.ExternalGraphic;
+import org.geotools.styling.FeatureTypeStyle;
+import org.geotools.styling.PointSymbolizer;
+import org.geotools.styling.PolygonSymbolizer;
+import org.geotools.styling.SLDParser;
+import org.geotools.styling.StyleFactoryImpl;
+import org.geotools.styling.StyledLayerDescriptor;
+import org.geotools.styling.UserLayer;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import org.junit.Test;
 import org.opengis.feature.Feature;
 import org.opengis.feature.simple.SimpleFeature;
@@ -39,16 +53,10 @@ import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.feature.type.FeatureType;
 import org.opengis.feature.type.GeometryDescriptor;
 
-import com.google.common.base.Predicate;
-import com.google.common.collect.Iterables;
-import com.vividsolutions.jts.geom.Coordinate;
-import com.vividsolutions.jts.geom.Point;
-import org.apache.commons.io.FileUtils;
-
 
 public class ImporterDataTest extends ImporterTestSupport {
 
-    private static final class DescriptionLimitingTransform extends AbstractInlineVectorTransform {
+    public static final class DescriptionLimitingTransform extends AbstractInlineVectorTransform {
         /** serialVersionUID */
         private static final long serialVersionUID = 1L;
 
@@ -585,10 +593,10 @@ public class ImporterDataTest extends ImporterTestSupport {
 
     @Test
     public void testImportKMLIndirect() throws Exception {
-        File dir = unpack("kml/sample.zip");
+        File sample = file("kml/sample.kml");
         String wsName = getCatalog().getDefaultWorkspace().getName();
         DataStoreInfo h2DataStore = createH2DataStore(wsName, "kmltest");
-        SpatialFile importData = new SpatialFile(new File(dir, "sample.kml"));
+        SpatialFile importData = new SpatialFile(sample);
         ImportContext context = importer.createContext(importData, h2DataStore);
         assertEquals(1, context.getTasks().size());
         ImportTask task = context.getTasks().get(0);
@@ -618,16 +626,55 @@ public class ImporterDataTest extends ImporterTestSupport {
     }
 
     @Test
-    public void testImportKMZCorrectLayerName() throws Exception {
-        // @todo use a smaller sample
-        File dir = unpack("kml/sample.zip");
-        // mimic the behavior of Directory unpack + KMLFileFormat
-        File kmzDir = new File(dir, "mcsample.kmz");
-        kmzDir.mkdir();
-        File doc = new File(kmzDir,"doc.kml");
-        FileUtils.moveFile(new File(dir, "sample.kml"), doc);
+    public void testImportKMLIndirectCollateByGeometry() throws Exception {
+        File sample = file("kml/sample.kml");
         String wsName = getCatalog().getDefaultWorkspace().getName();
         DataStoreInfo h2DataStore = createH2DataStore(wsName, "kmltest");
+        SpatialFile importData = new SpatialFile(sample);
+        // tell the import to collate into featuretype by geometry
+        importData.setOptions(Collections.singletonList("kml:bygeometry"));
+        ImportContext context = importer.createContext(importData, h2DataStore);
+        assertEquals(3, context.getTasks().size());
+        // transform chain to limit characters
+        // otherwise we get a sql exception thrown
+        for (ImportTask task: context.getTasks()) {
+            TransformChain transformChain = task.getTransform();
+            transformChain.add(new DescriptionLimitingTransform());
+        }
+        importer.run(context);
+        ImportTask points = getByLayerName("samplePoint", context);
+        ImportTask lines = getByLayerName("sampleLineString", context);
+        ImportTask polys = getByLayerName("samplePolygon", context);
+        assertNotNull(points);
+        assertNotNull(lines);
+        assertNotNull(polys);
+        assertEquals(5, ((FeatureTypeInfo) points.getLayer().getResource()).getFeatureSource(null, null).getCount(Query.ALL));
+        assertEquals(6, ((FeatureTypeInfo) lines.getLayer().getResource()).getFeatureSource(null, null).getCount(Query.ALL));
+        assertEquals(9, ((FeatureTypeInfo) polys.getLayer().getResource()).getFeatureSource(null, null).getCount(Query.ALL));
+    }
+
+    @Test
+    public void testImportKMZ() throws Exception {
+        File dir = tmpDir();
+        // mimic the behavior of Directory unpack + KMLFileFormat
+        // parent directory will be layer name
+        File kmzDir = new File(dir, "mcsample.kmz");
+        kmzDir.mkdir();
+        // verify a doc other than doc.kml gets recognized
+        File doc = new File(kmzDir, "sample2.kml");
+        FileUtils.copyFile(file("kml/sample2.kml"), doc);
+        // some fake resources referenced by the kml
+        new File(kmzDir, "style1.png").createNewFile();
+        new File(kmzDir, "images").mkdir();
+        new File(kmzDir, "images/style2.png").createNewFile();
+        new File(kmzDir, "folder").mkdir();
+        new File(kmzDir, "asset1.png").createNewFile();
+        new File(kmzDir, "folder/asset2.png").createNewFile();
+
+
+        String wsName = getCatalog().getDefaultWorkspace().getName();
+        DataStoreInfo h2DataStore = createH2DataStore(wsName, "kmltest");
+
         // doc lives within the kmzDir and KMLFileFormat knows about this
         SpatialFile importData = new SpatialFile(doc);
         ImportContext context = importer.createContext(importData, h2DataStore);
@@ -636,6 +683,51 @@ public class ImporterDataTest extends ImporterTestSupport {
 
         LayerInfo layer = task.getLayer();
         assertEquals("mcsample", layer.getName());
+
+        importer.run(context);
+
+        // verify style path and copied resources
+        File stylePath = KMLFileFormat.getStylePath(task);
+        assertTrue(stylePath.exists());
+        assertEquals(new File(getDataDirectory().findStyleDir(), "mcsample"), stylePath);
+        assertTrue(new File(stylePath, "style1.png").exists());
+        assertTrue(new File(stylePath, "images/style2.png").exists());
+        assertTrue(new File(stylePath, "asset1.png").exists());
+        assertTrue(new File(stylePath, "folder/asset2.png").exists());
+        // doc/kml should not get deployed
+        assertFalse(new File(stylePath, "sample2.kml").exists());
+
+        // verify replaced relative paths in description
+        FeatureTypeInfo typeInfo = (FeatureTypeInfo) task.getLayer().getResource();
+        FeatureSource<? extends FeatureType, ? extends Feature> featureSource = typeInfo.getFeatureSource(null, null);
+        FeatureCollection<? extends FeatureType, ? extends Feature> collection = featureSource.getFeatures();
+        FeatureIterator<SimpleFeature> features = (FeatureIterator<SimpleFeature>) collection.features();
+        SimpleFeature feature = features.next();
+        assertEquals("<img src=\"/geoserver/styles/mcsample/asset1.png\">",
+                feature.getAttribute("description"));
+        feature = features.next();
+        assertEquals("<img src=\"/geoserver/styles/mcsample/asset1.png\"><img src=\"/geoserver/styles/mcsample/folder/asset2.png\">",
+                feature.getAttribute("description"));
+        features.close();
+
+        // verify rewritten SLD URIs and other adjustments
+        File f = getDataDirectory().findStyleSldFile(task.getLayer().getDefaultStyle());
+        SLDParser parser = new SLDParser(new StyleFactoryImpl());
+        parser.setInput(f);
+        StyledLayerDescriptor sld = parser.parseSLD();
+        FeatureTypeStyle[] featureTypeStyles = ((UserLayer) sld.getStyledLayers()[0]).getUserStyles()[0].getFeatureTypeStyles();
+        assertEquals(2, featureTypeStyles.length);
+        assertEquals("#style1", featureTypeStyles[0].getName());
+        assertEquals("#style2", featureTypeStyles[1].getName());
+        // - the relative links should have the layer prefix
+        ExternalGraphic graphic = (ExternalGraphic) ((PointSymbolizer)featureTypeStyles[0].rules().get(0).getSymbolizers()[0]).getGraphic().graphicalSymbols().get(0);
+        assertTrue(graphic.getOnlineResource().getLinkage().toString().endsWith("mcsample/style1.png"));
+        // - for the second style, the first rule applies if a polygon, the second contains the graphic
+        graphic = (ExternalGraphic) ((PointSymbolizer)featureTypeStyles[1].rules().get(1).getSymbolizers()[0]).getGraphic().graphicalSymbols().get(0);
+        assertTrue(graphic.getOnlineResource().getLinkage().toString().endsWith("mcsample/images/style2.png"));
+        // - and verify the first rule of the second style is polygon only symbol
+        assertEquals(1, featureTypeStyles[1].rules().get(0).getSymbolizers().length);
+        assertTrue(featureTypeStyles[1].rules().get(0).getSymbolizers()[0] instanceof PolygonSymbolizer);
     }
 
     @Test

@@ -149,7 +149,6 @@ public class GeoJSONFormat extends VectorFormat {
 
         // get the composite feature type
         SimpleFeatureType featureType = new FeatureJSON().readFeatureCollectionSchema(file, false);
-        System.out.println(featureType);
 
         SimpleFeatureTypeBuilder tb = new SimpleFeatureTypeBuilder();
         tb.init(featureType);
