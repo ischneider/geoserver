@@ -4,21 +4,25 @@
  */
 package org.geoserver.importer.format;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintStream;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import org.apache.commons.io.FileUtils;
 
 import java.util.zip.ZipFile;
+import javax.servlet.ServletContext;
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.filefilter.FileFilterUtils;
 import org.geoserver.catalog.AttributeTypeInfo;
 import org.geoserver.catalog.Catalog;
 import org.geoserver.catalog.CatalogBuilder;
@@ -26,20 +30,26 @@ import org.geoserver.catalog.CatalogFactory;
 import org.geoserver.catalog.FeatureTypeInfo;
 import org.geoserver.catalog.LayerInfo;
 import org.geoserver.catalog.MetadataMap;
+import org.geoserver.catalog.ProjectionPolicy;
 import org.geoserver.catalog.ResourceInfo;
 import org.geoserver.catalog.StoreInfo;
+import org.geoserver.catalog.StyleInfo;
 import org.geoserver.catalog.WorkspaceInfo;
-import org.geoserver.importer.FileData;
-import org.geoserver.importer.ImportData;
-import org.geoserver.importer.ImportTask;
-import org.geoserver.importer.VFSWorker;
-import org.geoserver.importer.VectorFormat;
-import org.geoserver.importer.job.ProgressMonitor;
-import org.geoserver.importer.transform.KMLPlacemarkTransform;
+import org.geoserver.config.GeoServerDataDirectory;
 import org.geotools.data.FeatureReader;
 import org.geotools.feature.simple.SimpleFeatureTypeBuilder;
 import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.geotools.referencing.CRS;
+import org.geoserver.importer.FileData;
+import org.geoserver.importer.ImportData;
+import org.geoserver.importer.ImportTask;
+import org.geoserver.importer.Importer;
+import org.geoserver.importer.StyleGenerator;
+import org.geoserver.importer.VFSWorker;
+import org.geoserver.importer.VectorFormat;
+import org.geoserver.importer.job.ProgressMonitor;
+import org.geoserver.platform.GeoServerExtensions;
+import org.geotools.kml.StyleMap;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.feature.type.AttributeDescriptor;
@@ -59,8 +69,6 @@ public class KMLFileFormat extends VectorFormat {
     public static String KML_SRS = "EPSG:4326";
 
     public static CoordinateReferenceSystem KML_CRS;
-
-    private static KMLPlacemarkTransform kmlTransform = new KMLPlacemarkTransform();
 
     private static ReferencedEnvelope EMPTY_BOUNDS = new ReferencedEnvelope();
 
@@ -99,10 +107,36 @@ public class KMLFileFormat extends VectorFormat {
                 userData.put("schemanames", metadata.get("importschemanames"));
             }
         }
-        return read(ft, file);
+        KMLTransformingFeatureReader reader = read(ft, file);
+        File kmzDir = getKmzDirectory(task);
+        List<String> paths = (List<String>) (kmzDir == null ? Collections.emptyList() : getResourcePaths(kmzDir));
+        File stylePath = getStylePath(task);
+        GeoServerDataDirectory dataDir = GeoServerExtensions.bean(GeoServerDataDirectory.class);
+        ServletContext context = GeoServerExtensions.bean(ServletContext.class);
+        String contextPath = "/geoserver";
+        try {
+            contextPath = context.getContextPath();
+        } catch (AbstractMethodError ame) {
+            // mock context is old
+        }
+        String relativePath = stylePath.toURI().getPath().replace(dataDir.root().toURI().getPath(), "");
+        reader.setRewritePaths(contextPath + "/" + relativePath, paths);
+        return reader;
     }
 
-    public FeatureReader<SimpleFeatureType, SimpleFeature> read(SimpleFeatureType featureType,
+    static List<String> getResourcePaths(File dir) {
+        List<String> paths = new ArrayList<String>();
+        Collection<File> files = FileUtils.listFiles(dir, FileFilterUtils.fileFileFilter(), FileFilterUtils.trueFileFilter());
+        String parent = dir.toURI().getPath();
+        for (File f: files) {
+            if (!f.getName().toLowerCase().endsWith(".kml")) {
+                paths.add(f.toURI().getPath().replace(parent, ""));
+            }
+        }
+        return paths;
+    }
+
+    public KMLTransformingFeatureReader read(SimpleFeatureType featureType,
             File file) {
         try {
             return new KMLTransformingFeatureReader(featureType, new FileInputStream(file));
@@ -161,9 +195,7 @@ public class KMLFileFormat extends VectorFormat {
 
     private File getFileFromData(ImportData data) {
         assert data instanceof FileData;
-        FileData fileData = (FileData) data;
-        File file = fileData.getFile();
-        return file;
+        return ((FileData) data).getFile();
     }
 
     @Override
@@ -171,99 +203,6 @@ public class KMLFileFormat extends VectorFormat {
             throws IOException {
         // null means no direct store imports can be performed
         return null;
-    }
-
-    public Collection<SimpleFeatureType> parseFeatureTypes(String typeName, File file)
-            throws IOException {
-        InputStream inputStream = null;
-        try {
-            inputStream = new FileInputStream(file);
-            return parseFeatureTypes(typeName, inputStream);
-        } finally {
-            if (inputStream != null) {
-                inputStream.close();
-            }
-        }
-    }
-
-    private SimpleFeatureType unionFeatureTypes(SimpleFeatureType a, SimpleFeatureType b) {
-        if (a == null) {
-            return b;
-        }
-        SimpleFeatureTypeBuilder ftb = new SimpleFeatureTypeBuilder();
-        ftb.init(a);
-        List<AttributeDescriptor> attributeDescriptors = a.getAttributeDescriptors();
-        Set<String> attrNames = new HashSet<String>(attributeDescriptors.size());
-        for (AttributeDescriptor ad : attributeDescriptors) {
-            attrNames.add(ad.getLocalName());
-        }
-        for (AttributeDescriptor ad : b.getAttributeDescriptors()) {
-            if (!attrNames.contains(ad.getLocalName())) {
-                ftb.add(ad);
-            }
-        }
-        return ftb.buildFeatureType();
-    }
-
-    public SimpleFeatureType convertParsedFeatureType(SimpleFeatureType ft, String name,
-            Set<String> untypedAttributes) {
-        SimpleFeatureType transformedType = kmlTransform.convertFeatureType(ft);
-        SimpleFeatureTypeBuilder ftb = new SimpleFeatureTypeBuilder();
-        ftb.init(transformedType);
-        Set<String> existringAttrNames = new HashSet<String>();
-        for (AttributeDescriptor ad : ft.getAttributeDescriptors()) {
-            existringAttrNames.add(ad.getLocalName());
-        }
-        for (String attr : untypedAttributes) {
-            if (!existringAttrNames.contains(attr)) {
-                ftb.add(attr, String.class);
-            }
-        }
-        ftb.setName(name);
-        ftb.setCRS(KML_CRS);
-        ftb.setSRS(KML_SRS);
-        return ftb.buildFeatureType();
-    }
-
-    public List<SimpleFeatureType> parseFeatureTypes(String typeName, InputStream inputStream)
-            throws IOException {
-        KMLRawReader reader = new KMLRawReader(inputStream,
-                KMLRawReader.ReadType.SCHEMA_AND_FEATURES);
-        Set<String> untypedAttributes = new HashSet<String>();
-        List<String> schemaNames = new ArrayList<String>();
-        List<SimpleFeatureType> schemas = new ArrayList<SimpleFeatureType>();
-        SimpleFeatureType aggregateFeatureType = null;
-        for (Object object : reader) {
-            if (object instanceof SimpleFeature) {
-                SimpleFeature feature = (SimpleFeature) object;
-                SimpleFeatureType ft = feature.getFeatureType();
-                aggregateFeatureType = unionFeatureTypes(aggregateFeatureType, ft);
-                Map<Object, Object> userData = feature.getUserData();
-                @SuppressWarnings("unchecked")
-                Map<String, Object> untypedData = (Map<String, Object>) userData
-                        .get("UntypedExtendedData");
-                if (untypedData != null) {
-                    untypedAttributes.addAll(untypedData.keySet());
-                }
-            } else if (object instanceof SimpleFeatureType) {
-                SimpleFeatureType schema = (SimpleFeatureType) object;
-                schemas.add(schema);
-                schemaNames.add(schema.getName().getLocalPart());
-            }
-        }
-        if (aggregateFeatureType == null && schemas.isEmpty()) {
-            throw new IllegalArgumentException("No features found");
-        }
-        SimpleFeatureType featureType = aggregateFeatureType;
-        for (SimpleFeatureType schema : schemas) {
-            featureType = unionFeatureTypes(featureType, schema);
-        }
-        featureType = convertParsedFeatureType(featureType, typeName, untypedAttributes);
-        if (!schemaNames.isEmpty()) {
-            Map<Object, Object> userData = featureType.getUserData();
-            userData.put("schemanames", schemaNames);
-        }
-        return Collections.singletonList(featureType);
     }
 
     @Override
@@ -274,7 +213,11 @@ public class KMLFileFormat extends VectorFormat {
         String baseName = typeNameFromFile(file);
         CatalogFactory factory = catalog.getFactory();
 
-        Collection<SimpleFeatureType> featureTypes = parseFeatureTypes(baseName, file);
+        KMLFeatureTypeParser parser = data.getOptions().contains("kml:bygeometry") ?
+                KMLFeatureTypeParser.byGeometryTypeParser(baseName) :
+                KMLFeatureTypeParser.unionFeatureTypeParser(baseName);
+        parser.parse(file);
+        Collection<SimpleFeatureType> featureTypes = parser.getFeatureTypes();
         List<ImportTask> result = new ArrayList<ImportTask>(featureTypes.size());
         for (SimpleFeatureType featureType : featureTypes) {
             String name = featureType.getName().getLocalPart();
@@ -298,6 +241,7 @@ public class KMLFileFormat extends VectorFormat {
             resource.setNativeCRS(KML_CRS);
             resource.setNativeBoundingBox(EMPTY_BOUNDS);
             resource.setLatLonBoundingBox(EMPTY_BOUNDS);
+            resource.setProjectionPolicy(ProjectionPolicy.FORCE_DECLARED);
             resource.getMetadata().put("recalculate-bounds", Boolean.TRUE);
 
             Map<Object, Object> userData = featureType.getUserData();
@@ -309,6 +253,7 @@ public class KMLFileFormat extends VectorFormat {
             ImportTask task = new ImportTask(data);
             task.setLayer(layer);
             task.getMetadata().put(FeatureType.class, featureType);
+            task.getMetadata().put(StyleMap.class, parser.getStyleMap());
             result.add(task);
         }
         return Collections.unmodifiableList(result);
@@ -347,4 +292,80 @@ public class KMLFileFormat extends VectorFormat {
             tmp.delete();
         }
     }
+
+    public static File getStylePath(ImportTask task) {
+        GeoServerDataDirectory dataDir = GeoServerExtensions.bean(GeoServerDataDirectory.class);
+        File styleDir;
+        try {
+            styleDir = dataDir.findStyleDir();
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        }
+        String layerName = task.getLayer().getName();
+        layerName = layerName.replace(' ', '_'); // style router won't handle this
+        File path = new File(styleDir, layerName);
+        path.mkdirs();
+        return path;
+    }
+
+    @Override
+    public void prepare(ImportTask task) {
+        // we know this will be an indirect task to a catalog will exist
+        Catalog catalog = (Catalog) GeoServerExtensions.bean("catalog");
+        String name = StyleGenerator.findUniqueStyleName(catalog, task.getLayer().getResource());
+        StyleInfo style = catalog.getFactory().createStyle();
+        style.setName(name);
+        style.setFilename(name + ".sld");
+        task.getLayer().setDefaultStyle(style);
+    }
+
+    @Override
+    public void finish(ImportTask task) {
+        File resources = getStylePath(task);
+
+        // deploy SLD
+        KMLSLDAssembler sld = new KMLSLDAssembler();
+        sld.setSLDName(task.getLayer().getName());
+        // @todo go back and regenerate if missing?
+        StyleMap styles = (StyleMap) task.getMetadata().get(StyleMap.class);
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        PrintStream stream = new PrintStream(buffer);
+        // use the name of the directory to rewrite relative style URIs
+        sld.write(stream, styles, resources.getName());
+        Catalog catalog = (Catalog) GeoServerExtensions.bean("catalog");
+        StyleInfo style = task.getLayer().getDefaultStyle();
+        try {
+            catalog.getResourcePool().writeStyle(style, new ByteArrayInputStream(buffer.toByteArray()));
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        }
+
+        // deploy any referenced resources
+        File directory = getKmzDirectory(task);
+        if (directory != null) {
+            File[] f = directory.listFiles();
+            for (int i = 0; i < f.length; i++) {
+                File file = f[i];
+                if (file.getName().endsWith(".kml")) {
+                    continue;
+                }
+                try {
+                    if (file.isDirectory()) {
+                        FileUtils.copyDirectoryToDirectory(file, resources);
+                    } else {
+                        FileUtils.copyFileToDirectory(file, resources);
+                    }
+                } catch (IOException ex) {
+                    throw new RuntimeException(ex);
+                }
+            }
+        }
+    }
+
+    private File getKmzDirectory(ImportTask task) {
+        FileData data = ((FileData) task.getData());
+        File directory = data.getFile().getParentFile();
+        return directory.getName().endsWith(".kmz") ? directory : null;
+    }
+
 }

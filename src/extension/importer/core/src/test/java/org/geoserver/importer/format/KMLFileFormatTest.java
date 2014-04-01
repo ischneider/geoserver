@@ -6,6 +6,7 @@ package org.geoserver.importer.format;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -27,6 +28,15 @@ public class KMLFileFormatTest extends TestCase {
         kmlFileFormat = new KMLFileFormat();
     }
 
+    public void testResourcePaths() throws Exception {
+        File dir = ImporterTestUtils.tmpDir();
+        new File(dir, "subdir").mkdir();
+        new File(dir, "one.png").createNewFile();
+        new File(dir, "subdir/two.png").createNewFile();
+        List<String> resourcePaths = KMLFileFormat.getResourcePaths(dir);
+        assertEquals(Arrays.asList("one.png","subdir/two.png"), resourcePaths);
+    }
+
     public void testUnpack() throws Exception {
         File unpack = ImporterTestUtils.tmpDir();
         File kml = new File(unpack, "kml.kml"); // we don't need a valid file
@@ -46,23 +56,24 @@ public class KMLFileFormatTest extends TestCase {
     }
 
     public void testParseFeatureTypeNoPlacemarks() throws IOException {
+        KMLFeatureTypeParser parser = KMLFeatureTypeParser.unionFeatureTypeParser("foo");
         String kmlInput = DOC_EL + "</kml>";
-        try {
-            kmlFileFormat.parseFeatureTypes("foo", IOUtils.toInputStream(kmlInput));
-        } catch (IllegalArgumentException e) {
-            assertTrue(true);
-            return;
-        }
-        fail("Expected Illegal Argument Exception for no features");
+        parser.parse(IOUtils.toInputStream(kmlInput));
+        assertTrue(parser.getFeatureTypes().isEmpty());
+    }
+
+    private List<SimpleFeatureType> parseUnionFeatureTypes(String name, String input) throws Exception {
+        KMLFeatureTypeParser parser = KMLFeatureTypeParser.unionFeatureTypeParser(name);
+        parser.parse(IOUtils.toInputStream(input));
+        return parser.getFeatureTypes();
     }
 
     public void testParseFeatureTypeMinimal() throws Exception {
         String kmlInput = DOC_EL + "<Placemark></Placemark></kml>";
-        List<SimpleFeatureType> featureTypes = kmlFileFormat.parseFeatureTypes("foo",
-                IOUtils.toInputStream(kmlInput));
+        List<SimpleFeatureType> featureTypes = parseUnionFeatureTypes("foo", kmlInput);
         assertEquals("Unexpected number of feature types", 1, featureTypes.size());
         SimpleFeatureType featureType = featureTypes.get(0);
-        assertEquals("Unexpected number of feature type attributes", 10,
+        assertEquals("Unexpected number of feature type attributes", 9,
                 featureType.getAttributeCount());
     }
 
@@ -71,11 +82,10 @@ public class KMLFileFormatTest extends TestCase {
                 + "<Data name=\"foo\"><value>bar</value></Data>"
                 + "<Data name=\"quux\"><value>morx</value></Data>" + "</ExtendedData>"
                 + "</Placemark></kml>";
-        List<SimpleFeatureType> featureTypes = kmlFileFormat.parseFeatureTypes("fleem",
-                IOUtils.toInputStream(kmlInput));
+        List<SimpleFeatureType> featureTypes = parseUnionFeatureTypes("fleem", kmlInput);
         assertEquals("Unexpected number of feature types", 1, featureTypes.size());
         SimpleFeatureType featureType = featureTypes.get(0);
-        assertEquals("Unexpected number of feature type attributes", 12,
+        assertEquals("Unexpected number of feature type attributes", 11,
                 featureType.getAttributeCount());
         assertEquals("Invalid attribute descriptor", String.class, featureType.getDescriptor("foo")
                 .getType().getBinding());
@@ -85,8 +95,7 @@ public class KMLFileFormatTest extends TestCase {
 
     public void testReadFeatureWithNameAndDescription() throws Exception {
         String kmlInput = DOC_EL + "<Placemark><name>foo</name><description>bar</description></Placemark></kml>";
-        SimpleFeatureType featureType = kmlFileFormat.parseFeatureTypes("foo",
-                IOUtils.toInputStream(kmlInput)).get(0);
+        SimpleFeatureType featureType = parseUnionFeatureTypes("foo", kmlInput).get(0);
         FeatureReader<SimpleFeatureType, SimpleFeature> reader = kmlFileFormat.read(featureType,
                 IOUtils.toInputStream(kmlInput));
         assertTrue("No features found", reader.hasNext());
@@ -101,8 +110,7 @@ public class KMLFileFormatTest extends TestCase {
                 + "<Data name=\"foo\"><value>bar</value></Data>"
                 + "<Data name=\"quux\"><value>morx</value></Data>" + "</ExtendedData>"
                 + "</Placemark></kml>";
-        SimpleFeatureType featureType = kmlFileFormat.parseFeatureTypes("foo",
-                IOUtils.toInputStream(kmlInput)).get(0);
+        SimpleFeatureType featureType = parseUnionFeatureTypes("foo", kmlInput).get(0);
         FeatureReader<SimpleFeatureType, SimpleFeature> reader = kmlFileFormat.read(featureType,
                 IOUtils.toInputStream(kmlInput));
         assertTrue("No features found", reader.hasNext());
@@ -118,8 +126,7 @@ public class KMLFileFormatTest extends TestCase {
                 + "<Placemark>" + "<ExtendedData>" + "<SchemaData schemaUrl=\"#myschema\">"
                 + "<SimpleData name=\"foo\">42</SimpleData>" + "</SchemaData>" + "</ExtendedData>"
                 + "</Placemark></kml>";
-        SimpleFeatureType featureType = kmlFileFormat.parseFeatureTypes("foo",
-                IOUtils.toInputStream(kmlInput)).get(0);
+        SimpleFeatureType featureType = parseUnionFeatureTypes("foo", kmlInput).get(0);
         FeatureReader<SimpleFeatureType, SimpleFeature> reader = kmlFileFormat.read(featureType,
                 IOUtils.toInputStream(kmlInput));
         assertTrue("No features found", reader.hasNext());
@@ -138,13 +145,13 @@ public class KMLFileFormatTest extends TestCase {
                 + "<SchemaData schemaUrl=\"#schema2\">"
                 + "<SimpleData name=\"bar\">4.2</SimpleData>" + "</SchemaData>" + "</ExtendedData>"
                 + "</Placemark></kml>";
-        List<SimpleFeatureType> featureTypes = kmlFileFormat.parseFeatureTypes("multiple",
-                IOUtils.toInputStream(kmlInput));
+        List<SimpleFeatureType> featureTypes = parseUnionFeatureTypes("multiple", kmlInput);
         assertEquals("Unexpected number of feature types", 1, featureTypes.size());
         SimpleFeatureType ft = featureTypes.get(0);
 
         FeatureReader<SimpleFeatureType, SimpleFeature> reader = kmlFileFormat.read(ft,
                 IOUtils.toInputStream(kmlInput));
+        assertTrue(reader.hasNext());
         SimpleFeature feature1 = reader.next();
         assertNotNull("Expecting feature", feature1);
         assertEquals("Invalid ext attr foo", 42, feature1.getAttribute("foo"));
@@ -159,12 +166,12 @@ public class KMLFileFormatTest extends TestCase {
                 + "<Data name=\"fleem\"><value>bar</value></Data>"
                 + "<Data name=\"quux\"><value>morx</value></Data>" + "</ExtendedData>"
                 + "</Placemark></kml>";
-        List<SimpleFeatureType> featureTypes = kmlFileFormat.parseFeatureTypes("typed-and-untyped",
-                IOUtils.toInputStream(kmlInput));
+        List<SimpleFeatureType> featureTypes = parseUnionFeatureTypes("typed-and-untyped", kmlInput);
         assertEquals("Unexpected number of feature types", 1, featureTypes.size());
         SimpleFeatureType featureType = featureTypes.get(0);
         FeatureReader<SimpleFeatureType, SimpleFeature> reader = kmlFileFormat.read(featureType,
                 IOUtils.toInputStream(kmlInput));
+        assertTrue(reader.hasNext());
         SimpleFeature feature = reader.next();
         assertNotNull("Expecting feature", feature);
         assertEquals("Invalid ext attr foo", 42, feature.getAttribute("foo"));
@@ -176,8 +183,7 @@ public class KMLFileFormatTest extends TestCase {
         String kmlInput = DOC_EL + "<Schema name=\"myschema\">"
                 + "<SimpleField type=\"int\" name=\"foo\"></SimpleField>" + "</Schema>"
                 + "<myschema><foo>7</foo></myschema>" + "</kml>";
-        List<SimpleFeatureType> featureTypes = kmlFileFormat.parseFeatureTypes("custom-schema",
-                IOUtils.toInputStream(kmlInput));
+        List<SimpleFeatureType> featureTypes = parseUnionFeatureTypes("custom-schema", kmlInput);
         assertEquals("Unexpected number of feature types", 1, featureTypes.size());
         SimpleFeatureType featureType = featureTypes.get(0);
         Map<Object, Object> userData = featureType.getUserData();
@@ -186,6 +192,7 @@ public class KMLFileFormatTest extends TestCase {
         assertEquals("Did not find expected schema name metadata", "myschema", schemaNames.get(0));
         FeatureReader<SimpleFeatureType, SimpleFeature> reader = kmlFileFormat.read(featureType,
                 IOUtils.toInputStream(kmlInput));
+        assertTrue(reader.hasNext());
         SimpleFeature feature = reader.next();
         assertNotNull("Expecting feature", feature);
         assertEquals("Invalid ext attr foo", 7, feature.getAttribute("foo"));

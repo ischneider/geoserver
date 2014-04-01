@@ -119,7 +119,7 @@ public class StyleGenerator {
 
     StyleInfo doCreateStyle(StyleType styleType, ResourceInfo resource) throws IOException {
         // find a new style name
-        String styleName = findUniqueStyleName(resource);
+        String styleName = findUniqueStyleName(catalog, resource);
 
         // variable replacement
         String sld = loadSLDFromTemplate(styleType, ramp.next(), resource);
@@ -135,7 +135,8 @@ public class StyleGenerator {
 
         return style;
     }
-    String findUniqueStyleName(ResourceInfo resource) {
+    
+    public static String findUniqueStyleName(Catalog catalog, ResourceInfo resource) {
         String styleName = resource.getStore().getWorkspace().getName() + "_" + resource.getName();
         StyleInfo style = catalog.getStyleByName(styleName);
         int i = 1;

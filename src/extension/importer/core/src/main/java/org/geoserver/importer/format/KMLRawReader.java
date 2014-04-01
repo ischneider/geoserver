@@ -7,132 +7,90 @@ package org.geoserver.importer.format;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 
 import javax.xml.namespace.QName;
 
 import org.geotools.kml.v22.KML;
+import org.geotools.kml.StyleMap;
 import org.geotools.kml.v22.KMLConfiguration;
 import org.geotools.xml.PullParser;
 import org.opengis.feature.simple.SimpleFeatureType;
 
-public class KMLRawReader implements Iterable<Object>, Iterator<Object> {
+/**
+ * Wrapper for a PullParser.
+ */
+public class KMLRawReader {
 
+    private final KMLConfiguration config;
     private final PullParser parser;
+    private final InputStream stream;
 
-    private Object next;
-
-    public static enum ReadType {
-        FEATURES, SCHEMA_AND_FEATURES
+    private KMLRawReader(InputStream stream, Object... specs) {
+        this.stream = stream;
+        this.config = new KMLConfiguration();
+        // this will force the parser to only put a URI in the generated
+        // placemarks' Style attribute.
+        config.setOnlyCollectStyles(true);
+        this.parser = new PullParser(config, stream, specs);
     }
 
-    public KMLRawReader(InputStream inputStream) {
-        this(inputStream, KMLRawReader.ReadType.FEATURES, null);
+    public StyleMap getStyleMap() {
+        return config.getStyleMap();
     }
 
-    public KMLRawReader(InputStream inputStream, KMLRawReader.ReadType readType) {
-        this(inputStream, readType, null);
-    }
-
-    public KMLRawReader(InputStream inputStream, KMLRawReader.ReadType readType,
-            SimpleFeatureType featureType) {
-        if (KMLRawReader.ReadType.SCHEMA_AND_FEATURES.equals(readType)) {
-            if (featureType == null) {
-                parser = new PullParser(new KMLConfiguration(), inputStream, KML.Placemark,
-                        KML.Schema);
-            } else {
-                parser = new PullParser(new KMLConfiguration(), inputStream, pullParserArgs(
-                        featureTypeSchemaNames(featureType), KML.Placemark, KML.Schema));
-            }
-        } else if (KMLRawReader.ReadType.FEATURES.equals(readType)) {
-            if (featureType == null) {
-                parser = new PullParser(new KMLConfiguration(), inputStream, KML.Placemark);
-            } else {
-                parser = new PullParser(new KMLConfiguration(), inputStream, pullParserArgs(
-                        featureTypeSchemaNames(featureType), KML.Placemark));
-            }
-        } else {
-            throw new IllegalArgumentException("Unknown parse read type: " + readType.toString());
-        }
-        next = null;
-    }
-
-    private Object[] pullParserArgs(List<QName> featureTypeSchemaNames, Object... args) {
-        Object[] parserArgs = new Object[featureTypeSchemaNames.size() + args.length];
-        System.arraycopy(args, 0, parserArgs, 0, args.length);
-        System.arraycopy(featureTypeSchemaNames.toArray(), 0, parserArgs, args.length,
-                featureTypeSchemaNames.size());
-        return parserArgs;
-    }
-
-    @SuppressWarnings("unchecked")
-    private List<QName> featureTypeSchemaNames(SimpleFeatureType featureType) {
-        Map<Object, Object> userData = featureType.getUserData();
-        if (userData.containsKey("schemanames")) {
-            List<String> names = (List<String>) userData.get("schemanames");
-            List<QName> qnames = new ArrayList<QName>(names.size());
-            for (String name : names) {
-                qnames.add(new QName(name));
-            }
-            return qnames;
-        }
-        return Collections.emptyList();
-    }
-
-    private Object read() throws IOException {
-        Object parsedObject;
+    /**
+     * Depending upon how created, return any of FeatureType, Feature, NetworkLink
+     * @return non-null object
+     * @throws IOException
+     */
+    public Object parse() throws IOException {
         try {
-            parsedObject = parser.parse();
-        } catch (Exception e) {
-            e.printStackTrace();
-            throw new IOException(e);
+            return parser.parse();
+        } catch (Exception ex) {
+            if (ex instanceof IOException) throw (IOException) ex;
+            throw new IOException(ex);
         }
-        return parsedObject;
     }
 
-    @Override
-    public boolean hasNext() {
-        if (next != null) {
-            return true;
-        }
+    public void close() {
         try {
-            next = read();
-        } catch (IOException e) {
-            next = null;
+            stream.close();
+        } catch (IOException ex) {
+            // dang
         }
-        return next != null;
     }
 
-    @Override
-    public Object next() {
-        if (next != null) {
-            Object result = next;
-            next = null;
-            return result;
-        }
-        Object feature;
-        try {
-            feature = read();
-        } catch (IOException e) {
-            feature = null;
-        }
-        if (feature == null) {
-            throw new NoSuchElementException();
-        }
-        return feature;
+    /**
+     * Create a KMLRawReader that returns all objects of interest.
+     */
+    public static KMLRawReader buildFullParser(InputStream stream) {
+        return new KMLRawReader(stream, handlerSpecs(null, KML.Placemark, KML.Schema, KML.NetworkLink));
     }
 
-    @Override
-    public Iterator<Object> iterator() {
-        return this;
+    /**
+     * Create a KMLRawReader that returns only Placemarks and optionally those
+     * of the provided featureType
+     */
+    public static KMLRawReader buildFeatureParser(InputStream stream, SimpleFeatureType featureType) {
+        return new KMLRawReader(stream, handlerSpecs(featureType, KML.Placemark));
     }
 
-    @Override
-    public void remove() {
-        throw new UnsupportedOperationException();
+    private static Object[] handlerSpecs(SimpleFeatureType featureType, Object... other) {
+        List specs = new ArrayList();
+        specs.addAll(Arrays.asList(other));
+        if (featureType != null) {
+            Map<Object, Object> userData = featureType.getUserData();
+            if (userData.containsKey("schemanames")) {
+                List<String> names = (List<String>) userData.get("schemanames");
+                for (String name : names) {
+                    specs.add(new QName(name));
+                }
+            }
+        }
+        return specs.toArray();
     }
+
 }

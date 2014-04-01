@@ -725,6 +725,7 @@ public class Importer implements DisposableBean, ApplicationListener {
         }
         task.setState(ImportTask.State.RUNNING);
 
+        task.getData().getFormat().prepare(task);
         if (task.isDirect()) {
             //direct import, simply add configured store and layers to catalog
             doDirectImport(task);
@@ -733,7 +734,7 @@ public class Importer implements DisposableBean, ApplicationListener {
             //indirect import, read data from the source and into the target datastore 
             doIndirectImport(task);
         }
-
+        task.getData().getFormat().finish(task);
     }
     
     public File getArchiveFile(ImportContext context) throws IOException {

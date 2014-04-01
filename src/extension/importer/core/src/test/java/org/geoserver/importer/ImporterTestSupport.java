@@ -28,6 +28,7 @@ import org.geotools.data.Query;
 import org.w3c.dom.Document;
 
 import com.mockrunner.mock.web.MockHttpServletResponse;
+import java.util.List;
 
 public abstract class ImporterTestSupport extends GeoServerTestSupport {
 
@@ -157,6 +158,16 @@ public abstract class ImporterTestSupport extends GeoServerTestSupport {
             id++;
         }
         return id;
+    }
+
+    protected ImportTask getByLayerName(String name, ImportContext context) {
+        List<ImportTask> tasks = context.getTasks();
+        for (int i = 0; i < tasks.size(); i++) {
+            if (name.equals(tasks.get(i).getLayer().getName())) {
+                return tasks.get(i);
+            }
+        }
+        return null;
     }
 
     public static class JSONObjectBuilder extends JSONBuilder {
