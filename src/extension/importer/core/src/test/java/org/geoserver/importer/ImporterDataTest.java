@@ -44,6 +44,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Point;
+import java.util.List;
 import org.apache.commons.io.FileUtils;
 import org.geoserver.importer.format.KMLFileFormat;
 import org.geotools.styling.ExternalGraphic;
@@ -716,19 +717,19 @@ public class ImporterDataTest extends ImporterTestSupport {
         SLDParser parser = new SLDParser(new StyleFactoryImpl());
         parser.setInput(f);
         StyledLayerDescriptor sld = parser.parseSLD();
-        FeatureTypeStyle[] featureTypeStyles = ((UserLayer) sld.getStyledLayers()[0]).getUserStyles()[0].getFeatureTypeStyles();
-        assertEquals(2, featureTypeStyles.length);
-        assertEquals("#style1", featureTypeStyles[0].getName());
-        assertEquals("#style2", featureTypeStyles[1].getName());
+        List<FeatureTypeStyle> featureTypeStyles = ((UserLayer) sld.getStyledLayers()[0]).getUserStyles()[0].featureTypeStyles();
+        assertEquals(3, featureTypeStyles.size());
+        assertEquals("#style1", featureTypeStyles.get(0).getName());
+        assertEquals("#style2", featureTypeStyles.get(1).getName());
         // - the relative links should have the layer prefix
-        ExternalGraphic graphic = (ExternalGraphic) ((PointSymbolizer)featureTypeStyles[0].rules().get(0).getSymbolizers()[0]).getGraphic().graphicalSymbols().get(0);
+        ExternalGraphic graphic = (ExternalGraphic) ((PointSymbolizer)featureTypeStyles.get(0).rules().get(0).getSymbolizers()[0]).getGraphic().graphicalSymbols().get(0);
         assertTrue(graphic.getOnlineResource().getLinkage().toString().endsWith("mcsample/style1.png"));
         // - for the second style, the first rule applies if a polygon, the second contains the graphic
-        graphic = (ExternalGraphic) ((PointSymbolizer)featureTypeStyles[1].rules().get(1).getSymbolizers()[0]).getGraphic().graphicalSymbols().get(0);
+        graphic = (ExternalGraphic) ((PointSymbolizer)featureTypeStyles.get(1).rules().get(1).getSymbolizers()[0]).getGraphic().graphicalSymbols().get(0);
         assertTrue(graphic.getOnlineResource().getLinkage().toString().endsWith("mcsample/images/style2.png"));
         // - and verify the first rule of the second style is polygon only symbol
-        assertEquals(1, featureTypeStyles[1].rules().get(0).getSymbolizers().length);
-        assertTrue(featureTypeStyles[1].rules().get(0).getSymbolizers()[0] instanceof PolygonSymbolizer);
+        assertEquals(1, featureTypeStyles.get(1).rules().get(0).getSymbolizers().length);
+        assertTrue(featureTypeStyles.get(1).rules().get(0).getSymbolizers()[0] instanceof PolygonSymbolizer);
     }
 
     public void testImportDirectoryWithRasterIndirect() throws Exception {

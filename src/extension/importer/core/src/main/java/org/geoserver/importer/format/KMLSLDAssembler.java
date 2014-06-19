@@ -9,7 +9,6 @@ import java.io.PrintWriter;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -19,6 +18,8 @@ import org.geotools.metadata.iso.citation.OnLineResourceImpl;
 import org.geotools.styling.AbstractStyleVisitor;
 import org.geotools.styling.ExternalGraphic;
 import org.geotools.styling.FeatureTypeStyle;
+import org.geotools.styling.Graphic;
+import org.geotools.styling.PointSymbolizer;
 import org.geotools.styling.PolygonSymbolizer;
 import org.geotools.styling.Rule;
 import org.geotools.styling.SLDTransformer;
@@ -28,7 +29,6 @@ import org.geotools.styling.StyleFactory;
 import org.geotools.styling.StyledLayerDescriptor;
 import org.geotools.styling.Symbolizer;
 import org.geotools.styling.UserLayer;
-import org.geotools.styling.visitor.DuplicatingStyleVisitor;
 import org.opengis.filter.Filter;
 import org.opengis.filter.FilterFactory;
 import org.opengis.filter.PropertyIsEqualTo;
@@ -87,6 +87,11 @@ public class KMLSLDAssembler {
         Collections.sort(keys);
         for (URI uri : keys) {
             FeatureTypeStyle fts = map.get(uri);
+            // if there are no symbolizers, skip. this happens from StyleMap elements
+            if (fts.rules().get(0).symbolizers().isEmpty()) {
+                continue;
+            }
+
             // rebuild using the uri to avoid modifying the original
             // the uri may be aliased to another style
             FeatureTypeStyle duplicate = sf.createFeatureTypeStyle();
@@ -119,6 +124,23 @@ public class KMLSLDAssembler {
             
             style.featureTypeStyles().add(duplicate);
         }
+
+        // build a default pushpin style to correspond to any missing styles
+        FeatureTypeStyle defaultStyle = sf.createFeatureTypeStyle();
+        defaultStyle.setName("defaultPushpinStyle");
+        PointSymbolizer point = sf.createPointSymbolizer();
+        Rule rule = sf.createRule();
+        rule.symbolizers().add(point);
+        rule.setFilter(ff.isNull(ff.property("Style")));
+        defaultStyle.rules().add(rule);
+        ExternalGraphic pin = styleBuilder.createExternalGraphic(
+                                    "http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png",
+                                    "image/png");
+        Graphic defaultGraphic = styleBuilder.createGraphic();
+        defaultGraphic.graphicalSymbols().add(pin);
+        point.setGraphic(defaultGraphic);
+        style.featureTypeStyles().add(defaultStyle);
+
         layer.addUserStyle(style);
     }
 
