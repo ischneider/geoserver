@@ -8,6 +8,7 @@ import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.Point;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.NoSuchElementException;
 import org.geotools.data.FeatureReader;
 import org.opengis.feature.simple.SimpleFeature;
@@ -31,6 +32,14 @@ public class KMLRawFeatureReader implements FeatureReader<SimpleFeatureType, Sim
         reader = KMLRawReader.buildFeatureParser(inputStream, featureType);
         Class<?> geomType = featureType.getGeometryDescriptor().getType().getBinding();
         filterGeomType = geomType != Geometry.class ? geomType : null;
+    }
+
+    public void setLenientParsing(boolean lenient) {
+        reader.setLenientParsing(lenient);
+    }
+
+    public List<String> getWarnings() {
+        return reader.getWarnings();
     }
 
     @Override

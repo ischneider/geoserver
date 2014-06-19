@@ -17,6 +17,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
 import org.apache.commons.io.FileUtils;
 
 import java.util.zip.ZipFile;
@@ -83,7 +84,7 @@ public class KMLFileFormat extends VectorFormat {
 
     @SuppressWarnings("rawtypes")
     @Override
-    public FeatureReader read(ImportData data, ImportTask task) throws IOException {
+    public FeatureReader read(ImportData data, final ImportTask task) throws IOException {
         File file = getFileFromData(data);
 
         // we need to get the feature type, to use for the particular parse through the file
@@ -107,7 +108,22 @@ public class KMLFileFormat extends VectorFormat {
                 userData.put("schemanames", metadata.get("importschemanames"));
             }
         }
-        KMLTransformingFeatureReader reader = read(ft, file);
+        KMLTransformingFeatureReader reader = new KMLTransformingFeatureReader(ft, new FileInputStream(file)) {
+            {
+                reader.setLenientParsing(task.isAllowIngestErrors());
+            }
+
+            @Override
+            public SimpleFeature next() {
+                SimpleFeature feat = super.next();
+                for (int i = 0; i < reader.getWarnings().size(); i++) {
+                    task.addMessage(Level.WARNING, reader.getWarnings().get(i));
+                }
+                reader.getWarnings().clear();
+                return feat;
+            }
+
+        };
         File kmzDir = getKmzDirectory(task);
         List<String> paths = (List<String>) (kmzDir == null ? Collections.emptyList() : getResourcePaths(kmzDir));
         File stylePath = getStylePath(task);
@@ -134,15 +150,6 @@ public class KMLFileFormat extends VectorFormat {
             }
         }
         return paths;
-    }
-
-    public KMLTransformingFeatureReader read(SimpleFeatureType featureType,
-            File file) {
-        try {
-            return new KMLTransformingFeatureReader(featureType, new FileInputStream(file));
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
     }
 
     public FeatureReader<SimpleFeatureType, SimpleFeature> read(SimpleFeatureType featureType,
@@ -216,6 +223,8 @@ public class KMLFileFormat extends VectorFormat {
         KMLFeatureTypeParser parser = data.getOptions().contains("kml:bygeometry") ?
                 KMLFeatureTypeParser.byGeometryTypeParser(baseName) :
                 KMLFeatureTypeParser.unionFeatureTypeParser(baseName);
+        boolean lenient = data.getOptions().contains("kml:lenient");
+        parser.setLenientParsing(lenient);
         parser.parse(file);
         Collection<SimpleFeatureType> featureTypes = parser.getFeatureTypes();
         List<ImportTask> result = new ArrayList<ImportTask>(featureTypes.size());
@@ -251,6 +260,7 @@ public class KMLFileFormat extends VectorFormat {
             }
 
             ImportTask task = new ImportTask(data);
+            task.setAllowIngestErrors(lenient);
             task.setLayer(layer);
             task.getMetadata().put(FeatureType.class, featureType);
             task.getMetadata().put(StyleMap.class, parser.getStyleMap());

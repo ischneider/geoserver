@@ -6,6 +6,7 @@ package org.geoserver.importer.rest;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -30,6 +31,7 @@ import java.io.FileInputStream;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.apache.commons.io.IOUtils;
 import org.geoserver.catalog.Catalog;
 import org.geoserver.catalog.DataStoreInfo;
 import org.geoserver.catalog.LayerInfo;
@@ -379,6 +381,38 @@ public class RESTDataTest extends ImporterTestSupport {
         runChecks(l.getName());
     }
 
+    public void testKMLLenientGeometryParsing() throws Exception {
+        DataStoreInfo acme = createH2DataStore("sf", "acme");
+
+        String json =
+            "{" +
+                "\"import\": { " +
+                    "\"targetStore\": {" +
+                        "\"dataStore\": {" +
+                            "\"name\": \"acme\", " +
+                            "\"workspace\": {" +
+                                "\"name\": \"sf\"" +
+                            "}" +
+                        "}" +
+                     "}" +
+                "}" +
+            "}";
+        int i = postNewImport(json);
+        int t = putNewTask(i, getClass().getResourceAsStream("/org/geotools/kml/v22/badGeometries.kml"), "badGeometries.kml", "option", "kml:lenient");
+
+        JSONObject task = getTask(i, t);
+        assertEquals("READY", task.getString("state"));
+
+        Catalog cat = importer.getCatalog();
+        assertTrue(cat.getFeatureTypesByDataStore(acme).isEmpty());
+
+        postImport(i);
+
+        JSONObject taskJson = getTask(i, t);
+        JSONArray messages = (JSONArray) taskJson.get("messages");
+        assertEquals(7, messages.size());
+    }
+
     JSONObject getImport(int imp) throws Exception {
         JSON json = getAsJSON(String.format("/rest/imports/%d", imp));
         return ((JSONObject)json).getJSONObject("import");
@@ -434,14 +468,27 @@ public class RESTDataTest extends ImporterTestSupport {
     }
 
     int putNewTask(int imp, String data) throws Exception {
-        File zip = file(data);
-        byte[] payload = new byte[ (int) zip.length()];
-        FileInputStream fis = new FileInputStream(zip);
-        fis.read(payload);
-        fis.close();
+        File file = file(data);
+        return putNewTask(imp, new FileInputStream(file), file.getName());
+    }
 
-        MockHttpServletRequest req = createRequest("/rest/imports/" + imp + "/tasks/" + new File(data).getName());
-        req.setHeader("Content-Type", MediaType.APPLICATION_ZIP.toString());
+    int putNewTask(int imp, InputStream data, String name, String... paramKeyValues) throws Exception {
+        byte[] payload = IOUtils.toByteArray(data);
+
+        String url = "/rest/imports/" + imp + "/tasks/" + name;
+        if (paramKeyValues.length > 0) {
+            url += "?";
+            for (int i = 0; i < paramKeyValues.length; i+= 2) {
+                url += paramKeyValues[i] + "=" + paramKeyValues[i+1];
+                url += "&";
+            }
+            url = url.substring(0, url.length() - 1);
+        }
+
+        MockHttpServletRequest req = createRequest(url);
+        if (name.endsWith("zip")) {
+            req.setHeader("Content-Type", MediaType.APPLICATION_ZIP.toString());
+        }
         req.setMethod("PUT");
         req.setBodyContent(payload);
 

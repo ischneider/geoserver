@@ -37,10 +37,15 @@ public class KMLFeatureTypeParser {
     private KMLRawReader reader;
     private final boolean collateByGeometry;
     private final SimpleFeatureTypeBuilder ftb = new SimpleFeatureTypeBuilder();
+    private boolean lenient = false;
 
     KMLFeatureTypeParser(String typeName, boolean collateByGeometry) {
         this.typeName = typeName;
         this.collateByGeometry = collateByGeometry;
+    }
+
+    public void setLenientParsing(boolean lenient) {
+        this.lenient = lenient;
     }
 
     public static KMLFeatureTypeParser unionFeatureTypeParser(String typeName) {
@@ -77,6 +82,7 @@ public class KMLFeatureTypeParser {
 
     public void parse(InputStream in) throws IOException {
         reader = KMLRawReader.buildFullParser(in);
+        reader.setLenientParsing(lenient);
         try {
             parseInternal(typeName);
         } finally {
