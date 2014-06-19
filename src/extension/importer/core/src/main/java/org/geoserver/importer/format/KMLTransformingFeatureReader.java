@@ -17,19 +17,14 @@ public class KMLTransformingFeatureReader implements
 
     private final SimpleFeatureType featureType;
 
-    private final FeatureReader<SimpleFeatureType, SimpleFeature> reader;
+    protected final KMLRawFeatureReader reader;
 
     private final KMLPlacemarkTransform placemarkTransformer;
 
     public KMLTransformingFeatureReader(SimpleFeatureType featureType, InputStream inputStream) {
-        this(featureType, new KMLRawFeatureReader(inputStream, featureType));
-    }
-
-    public KMLTransformingFeatureReader(SimpleFeatureType featureType,
-            FeatureReader<SimpleFeatureType, SimpleFeature> reader) {
         placemarkTransformer = new KMLPlacemarkTransform(featureType);
         this.featureType = featureType;
-        this.reader = reader;
+        this.reader = new KMLRawFeatureReader(inputStream, featureType);
     }
 
     @Override

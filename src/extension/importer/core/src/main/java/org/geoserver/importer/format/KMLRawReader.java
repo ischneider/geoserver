@@ -37,8 +37,16 @@ public class KMLRawReader {
         this.parser = new PullParser(config, stream, specs);
     }
 
+    public void setLenientParsing(boolean lenient) {
+        this.config.setLenientGeometryParsing(lenient);
+    }
+
     public StyleMap getStyleMap() {
         return config.getStyleMap();
+    }
+
+    public List<String> getWarnings() {
+        return config.getParseWarnings();
     }
 
     /**

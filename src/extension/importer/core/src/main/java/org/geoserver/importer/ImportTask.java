@@ -101,6 +101,11 @@ public class ImportTask implements Serializable {
     List<LogRecord> messages = new ArrayList<LogRecord>();
 
     /**
+     * skip invalid features during ingest
+     */
+    boolean allowIngestErrors = false;
+
+    /**
      * various metadata 
      */
     transient Map<Object,Object> metadata;
@@ -269,6 +274,14 @@ public class ImportTask implements Serializable {
 
     public ProgressMonitor progress() {
         return context.progress();
+    }
+
+    public boolean isAllowIngestErrors() {
+        return allowIngestErrors;
+    }
+
+    public void setAllowIngestErrors(boolean allowIngestErrors) {
+        this.allowIngestErrors = allowIngestErrors;
     }
 
     @Override

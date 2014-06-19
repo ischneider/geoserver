@@ -941,6 +941,7 @@ public class Importer implements DisposableBean, ApplicationListener {
         VectorTransformChain tx) throws Exception {
 
         ImportData data = task.getData();
+        task.clearMessages();
         FeatureReader reader = format.read(data, task);
         SimpleFeatureType featureType = (SimpleFeatureType) reader.getFeatureType();
         final String featureTypeName = featureType.getName().getLocalPart();
@@ -1025,6 +1026,7 @@ public class Importer implements DisposableBean, ApplicationListener {
         // metrics
         long startTime = System.currentTimeMillis();
         task.clearMessages();
+        task.setError(null);
         
         task.setTotalToProcess(format.getFeatureCount(task.getData(), task));
         

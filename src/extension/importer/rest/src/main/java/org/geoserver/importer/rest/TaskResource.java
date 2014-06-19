@@ -185,7 +185,7 @@ public class TaskResource extends BaseResource {
 
     @Override
     public void handlePutInternal() throws IOException {
-        if (getRequest().getEntity().getMediaType().equals(MediaType.APPLICATION_JSON)) {
+        if (MediaType.APPLICATION_JSON.equals(getRequest().getEntity().getMediaType())) {
             handleTaskPut();
         } else {
             acceptData(handleFileUpload(context()));
