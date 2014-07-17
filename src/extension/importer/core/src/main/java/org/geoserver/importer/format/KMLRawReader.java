@@ -20,7 +20,7 @@ import org.geotools.xml.PullParser;
 import org.opengis.feature.simple.SimpleFeatureType;
 
 /**
- * Wrapper for a PullParser.
+ * Wrapper for a PullParser and it's related KML components.
  */
 public class KMLRawReader {
 

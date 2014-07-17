@@ -368,7 +368,7 @@ public class Directory extends FileData {
             }
             buf.append(f.getFile().getName()).append(" : ").append(format).append('\n');
         }
-        LOGGER.warning(buf.toString());
+        LOGGER.fine(buf.toString());
     }
 
     public Directory filter(List<FileData> files) {

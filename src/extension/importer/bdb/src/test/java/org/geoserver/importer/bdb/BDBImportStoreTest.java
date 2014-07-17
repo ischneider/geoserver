@@ -65,6 +65,7 @@ public class BDBImportStoreTest extends ImporterTestSupport {
 
         assertEquals(1,context.getTasks().size());
         for (int i = 0; i < context.getTasks().size(); i++) {
+            context.getTasks().get(i).getMetadata().put("test", "test" + i);
             assertNotNull(context.getTasks().get(i).getStore());
             assertNotNull(context.getTasks().get(i).getStore().getCatalog());
         }
@@ -96,6 +97,7 @@ public class BDBImportStoreTest extends ImporterTestSupport {
         // ensure various transient bits are set correctly on deserialization
         assertEquals(1,context2.getTasks().size());
         for (int i = 0; i < context2.getTasks().size(); i++) {
+            assertEquals("test" + i, context2.getTasks().get(i).getMetadata().get("test"));
             assertNotNull(context2.getTasks().get(i).getStore());
             assertNotNull(context2.getTasks().get(i).getStore().getCatalog());
         }

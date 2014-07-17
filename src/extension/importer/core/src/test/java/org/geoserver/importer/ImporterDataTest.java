@@ -41,12 +41,12 @@ import org.apache.commons.io.FileUtils;
 import org.geoserver.importer.format.KMLFileFormat;
 import org.geotools.styling.ExternalGraphic;
 import org.geotools.styling.FeatureTypeStyle;
+import org.geotools.styling.NamedLayer;
 import org.geotools.styling.PointSymbolizer;
 import org.geotools.styling.PolygonSymbolizer;
 import org.geotools.styling.SLDParser;
 import org.geotools.styling.StyleFactoryImpl;
 import org.geotools.styling.StyledLayerDescriptor;
-import org.geotools.styling.UserLayer;
 
 public class ImporterDataTest extends ImporterTestSupport {
 
@@ -626,6 +626,8 @@ public class ImporterDataTest extends ImporterTestSupport {
         assertEquals(5, ((FeatureTypeInfo) points.getLayer().getResource()).getFeatureSource(null, null).getCount(Query.ALL));
         assertEquals(6, ((FeatureTypeInfo) lines.getLayer().getResource()).getFeatureSource(null, null).getCount(Query.ALL));
         assertEquals(9, ((FeatureTypeInfo) polys.getLayer().getResource()).getFeatureSource(null, null).getCount(Query.ALL));
+        assertTrue(points.getLayer().getDefaultStyle() == lines.getLayer().getDefaultStyle());
+        assertTrue(points.getLayer().getDefaultStyle() == polys.getLayer().getDefaultStyle());
     }
 
     public void testImportKMZ() throws Exception {
@@ -663,7 +665,7 @@ public class ImporterDataTest extends ImporterTestSupport {
         // verify style path and copied resources
         File stylePath = KMLFileFormat.getStylePath(task);
         assertTrue(stylePath.exists());
-        assertEquals(new File(getDataDirectory().findStyleDir(), "mcsample"), stylePath);
+        assertEquals(new File(getDataDirectory().findStyleDir(), "gs_mcsample"), stylePath);
         assertTrue(new File(stylePath, "style1.png").exists());
         assertTrue(new File(stylePath, "images/style2.png").exists());
         assertTrue(new File(stylePath, "asset1.png").exists());
@@ -677,10 +679,10 @@ public class ImporterDataTest extends ImporterTestSupport {
         FeatureCollection<? extends FeatureType, ? extends Feature> collection = featureSource.getFeatures();
         FeatureIterator<SimpleFeature> features = (FeatureIterator<SimpleFeature>) collection.features();
         SimpleFeature feature = features.next();
-        assertEquals("<img src=\"/geoserver/styles/mcsample/asset1.png\">",
+        assertEquals("<img src=\"/geoserver/styles/gs_mcsample/asset1.png\">",
                 feature.getAttribute("description"));
         feature = features.next();
-        assertEquals("<img src=\"/geoserver/styles/mcsample/asset1.png\"><img src=\"/geoserver/styles/mcsample/folder/asset2.png\">",
+        assertEquals("<img src=\"/geoserver/styles/gs_mcsample/asset1.png\"><img src=\"/geoserver/styles/gs_mcsample/folder/asset2.png\">",
                 feature.getAttribute("description"));
         features.close();
 
@@ -689,16 +691,16 @@ public class ImporterDataTest extends ImporterTestSupport {
         SLDParser parser = new SLDParser(new StyleFactoryImpl());
         parser.setInput(f);
         StyledLayerDescriptor sld = parser.parseSLD();
-        List<FeatureTypeStyle> featureTypeStyles = ((UserLayer) sld.getStyledLayers()[0]).getUserStyles()[0].featureTypeStyles();
+        List<FeatureTypeStyle> featureTypeStyles = ((NamedLayer) sld.getStyledLayers()[0]).styles().get(0).featureTypeStyles();
         assertEquals(3, featureTypeStyles.size());
         assertEquals("#style1", featureTypeStyles.get(0).getName());
         assertEquals("#style2", featureTypeStyles.get(1).getName());
         // - the relative links should have the layer prefix
         ExternalGraphic graphic = (ExternalGraphic) ((PointSymbolizer)featureTypeStyles.get(0).rules().get(0).getSymbolizers()[0]).getGraphic().graphicalSymbols().get(0);
-        assertTrue(graphic.getOnlineResource().getLinkage().toString().endsWith("mcsample/style1.png"));
+        assertTrue(graphic.getOnlineResource().getLinkage().toString().endsWith("gs_mcsample/style1.png"));
         // - for the second style, the first rule applies if a polygon, the second contains the graphic
         graphic = (ExternalGraphic) ((PointSymbolizer)featureTypeStyles.get(1).rules().get(1).getSymbolizers()[0]).getGraphic().graphicalSymbols().get(0);
-        assertTrue(graphic.getOnlineResource().getLinkage().toString().endsWith("mcsample/images/style2.png"));
+        assertTrue(graphic.getOnlineResource().getLinkage().toString().endsWith("gs_mcsample/images/style2.png"));
         // - and verify the first rule of the second style is polygon only symbol
         assertEquals(1, featureTypeStyles.get(1).rules().get(0).getSymbolizers().length);
         assertTrue(featureTypeStyles.get(1).rules().get(0).getSymbolizers()[0] instanceof PolygonSymbolizer);

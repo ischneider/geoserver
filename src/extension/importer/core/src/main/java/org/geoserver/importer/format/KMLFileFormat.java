@@ -136,7 +136,7 @@ public class KMLFileFormat extends VectorFormat {
             // mock context is old
         }
         String relativePath = stylePath.toURI().getPath().replace(dataDir.root().toURI().getPath(), "");
-        reader.setRewritePaths(contextPath + "/" + relativePath, paths);
+        reader.setRewritePaths(contextPath + "/" + relativePath + "/", paths);
         return reader;
     }
 
@@ -200,7 +200,7 @@ public class KMLFileFormat extends VectorFormat {
         return zip;
     }
 
-    private File getFileFromData(ImportData data) {
+    private static File getFileFromData(ImportData data) {
         assert data instanceof FileData;
         return ((FileData) data).getFile();
     }
@@ -269,7 +269,7 @@ public class KMLFileFormat extends VectorFormat {
         return Collections.unmodifiableList(result);
     }
 
-    private String typeNameFromFile(File file) {
+    private static String typeNameFromFile(File file) {
         String parentExt = FilenameUtils.getExtension(file.getParent());
         // if the doc.kml is in a directory ending w/ kmz or kml, take that directory name
         // so the featuretype doesn't end up as 'doc'.
@@ -311,27 +311,56 @@ public class KMLFileFormat extends VectorFormat {
         } catch (IOException ex) {
             throw new RuntimeException(ex);
         }
-        String layerName = task.getLayer().getName();
-        layerName = layerName.replace(' ', '_'); // style router won't handle this
-        File path = new File(styleDir, layerName);
-        path.mkdirs();
-        return path;
+        String sourceName = typeNameFromFile(getFileFromData(task.getData()));
+        String stylePath = task.getStore().getWorkspace().getName() + "_" + sourceName;
+        return new File(styleDir, stylePath);
+    }
+    
+    private StyleInfo findStyleInfo(ImportData data, List<ImportTask> tasks) {
+        StyleInfo style = null;
+        for (ImportTask t: tasks) {
+            if (data.equals(t.getData())) {
+                style = t.getLayer().getDefaultStyle();
+                if (style != null) {
+                    break;
+                }
+            }
+        }
+        return style;
     }
 
     @Override
     public void prepare(ImportTask task) {
+        // compute style directory - this could be done earlier in the game, but
+        // safer at this point during actual ingestion
+
         // we know this will be an indirect task to a catalog will exist
         Catalog catalog = (Catalog) GeoServerExtensions.bean("catalog");
-        String name = StyleGenerator.findUniqueStyleName(catalog, task.getLayer().getResource());
-        StyleInfo style = catalog.getFactory().createStyle();
-        style.setName(name);
-        style.setFilename(name + ".sld");
+
+        // because we want one single style and it's possible a task either
+        // comes from a single kml/kmz or is the result of collation, search
+        // for an existing match in the context
+        StyleInfo style = findStyleInfo(task.getData(), task.getContext().getTasks());
+        if (style == null) {
+            // make a style independent of the layer name in case we're using collated by geometry
+            String name = StyleGenerator.findUniqueStyleName(catalog, task.getStore().getWorkspace().getName(),
+                    typeNameFromFile(getFileFromData(task.getData())));
+            style = catalog.getFactory().createStyle();
+            style.setName(name);
+            style.setFilename(name + ".sld");
+        }
         task.getLayer().setDefaultStyle(style);
     }
 
     @Override
     public void finish(ImportTask task) {
         File resources = getStylePath(task);
+        // if there are multiple tasks related to collation by geometry,
+        // ensure this step only occurs once
+        if (resources.exists()) {
+            return;
+        }
+        resources.mkdirs();
 
         // deploy SLD
         KMLSLDAssembler sld = new KMLSLDAssembler();
@@ -341,7 +370,8 @@ public class KMLFileFormat extends VectorFormat {
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
         PrintStream stream = new PrintStream(buffer);
         // use the name of the directory to rewrite relative style URIs
-        sld.write(stream, styles, resources.getName());
+        File directory = getKmzDirectory(task);
+        sld.write(stream, styles, resources.getName(), directory, resources);
         Catalog catalog = (Catalog) GeoServerExtensions.bean("catalog");
         StyleInfo style = task.getLayer().getDefaultStyle();
         try {
@@ -351,7 +381,6 @@ public class KMLFileFormat extends VectorFormat {
         }
 
         // deploy any referenced resources
-        File directory = getKmzDirectory(task);
         if (directory != null) {
             File[] f = directory.listFiles();
             for (int i = 0; i < f.length; i++) {
