@@ -57,16 +57,11 @@ public class TaskTargetResource extends BaseResource {
     @Override
     public void handlePutInternal() {
         ImportTask task = task();
-        if (task.getStore() == null) {
-            getResponse().setStatus(Status.CLIENT_ERROR_NOT_FOUND, "Task has no target store");
-        }
-        else {
-            StoreInfo store = (StoreInfo) getFormatPostOrPut().toObject(getRequest().getEntity());
-            updateStoreInfo(task, store, importer);
+        StoreInfo store = (StoreInfo) getFormatPostOrPut().toObject(getRequest().getEntity());
 
-            importer.changed(task);
-            getResponse().setStatus(Status.SUCCESS_NO_CONTENT);
-        }
+        updateStoreInfo(task, store, importer);
+        importer.changed(task);
+        getResponse().setStatus(Status.SUCCESS_NO_CONTENT);
     }
 
     static void updateStoreInfo(ImportTask task, StoreInfo update, Importer importer) {
