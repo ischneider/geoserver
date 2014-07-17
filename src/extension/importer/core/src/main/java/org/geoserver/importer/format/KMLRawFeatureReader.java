@@ -4,10 +4,11 @@
  */
 package org.geoserver.importer.format;
 
+import com.vividsolutions.jts.geom.Geometry;
+import com.vividsolutions.jts.geom.Point;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.NoSuchElementException;
-
 import org.geotools.data.FeatureReader;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
@@ -20,11 +21,16 @@ public class KMLRawFeatureReader implements FeatureReader<SimpleFeatureType, Sim
 
     private final SimpleFeatureType featureType;
 
+    private SimpleFeature next;
+
+    private final Class<?> filterGeomType;
+
     public KMLRawFeatureReader(InputStream inputStream, SimpleFeatureType featureType) {
         this.inputStream = inputStream;
         this.featureType = featureType;
-        reader = new KMLRawReader(inputStream, KMLRawReader.ReadType.FEATURES,
-                featureType);
+        reader = KMLRawReader.buildFeatureParser(inputStream, featureType);
+        Class<?> geomType = featureType.getGeometryDescriptor().getType().getBinding();
+        filterGeomType = geomType != Geometry.class ? geomType : null;
     }
 
     @Override
@@ -35,12 +41,43 @@ public class KMLRawFeatureReader implements FeatureReader<SimpleFeatureType, Sim
     @Override
     public SimpleFeature next() throws IOException, IllegalArgumentException,
             NoSuchElementException {
-        return (SimpleFeature) reader.next();
+        if (next == null) {
+            throw new NoSuchElementException();
+        }
+        SimpleFeature f = next;
+        next = null;
+        return f;
     }
 
     @Override
     public boolean hasNext() throws IOException {
-        return reader.hasNext();
+        if (next == null) {
+            if (filterGeomType == null) {
+                next = (SimpleFeature) reader.parse();
+            } else {
+                next = nextByGeomType();
+            }
+        }
+        return next != null;
+    }
+
+    private SimpleFeature nextByGeomType() throws IOException {
+        SimpleFeature f = null;
+        while (true) {
+            f = (SimpleFeature) reader.parse();
+            if (f == null) {
+                break;
+            }
+            // if geom is null and type is Point
+            // or if the geom is an instance of the filter
+            // take this feature
+            Object geom = f.getDefaultGeometry();
+            if (geom == null && filterGeomType == Point.class ||
+                filterGeomType.isInstance(f.getDefaultGeometry())) {
+                break;
+            }
+        }
+        return f;
     }
 
     @Override

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>KML Samples</name>
+    <open>1</open>
+    <Style id="style1">
+      <IconStyle>
+        <Icon>
+          <href>style1.png</href>
+        </Icon>
+      </IconStyle>
+    </Style>
+    <Style id="style2">
+      <IconStyle>
+        <Icon>
+          <href>images/style2.png</href>
+        </Icon>
+      </IconStyle>
+      <LineStyle>
+        <width>2</width>
+      </LineStyle>
+      <PolyStyle>
+        <color></color>
+      </PolyStyle>
+    </Style>
+    <Folder>
+      <name>Placemarks</name>
+      <Placemark>
+        <name>p1</name>
+        <description><![CDATA[<img src="asset1.png">]]></description>
+        <styleUrl>#style1</styleUrl>
+        <Point>
+          <coordinates>-122.084075,37.4220033612141,50</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>p2</name>
+        <description><![CDATA[<img src="asset1.png"><img src="folder/asset2.png">]]></description>
+        <styleUrl>#style2</styleUrl>
+        <Point>
+          <coordinates>-122.0857667006183,37.42156927867553,50</coordinates>
+        </Point>
+      </Placemark>
+    </Folder>
+  </Document>
+</kml>

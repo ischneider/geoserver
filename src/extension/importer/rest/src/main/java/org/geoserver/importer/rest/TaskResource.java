@@ -11,10 +11,10 @@ import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import net.sf.json.JSONException;
 import net.sf.json.JSONObject;
@@ -35,6 +35,7 @@ import org.geoserver.importer.ValidationException;
 import org.geoserver.importer.transform.TransformChain;
 import org.restlet.data.Form;
 import org.restlet.data.MediaType;
+import org.restlet.data.Parameter;
 import org.restlet.data.Request;
 import org.restlet.data.Response;
 import org.restlet.data.Status;
@@ -102,6 +103,7 @@ public class TaskResource extends BaseResource {
     }
 
     private void acceptData(ImportData data) throws IOException {
+        parseOptions(getRequest(), data);
         ImportContext context = context();
         List<ImportTask> newTasks = importer.update(context, data);
             //importer.prep(context);
@@ -117,6 +119,20 @@ public class TaskResource extends BaseResource {
 
             getResponse().setEntity(getFormatGet().toRepresentation(result));
             getResponse().setStatus(Status.SUCCESS_CREATED);
+        }
+    }
+
+    static void parseOptions(Request request, ImportData data) {
+        Form query = request.getResourceRef().getQueryAsForm();
+        if (query.size() > 0) {
+            List<Parameter> params = new ArrayList<Parameter>(query);
+            List<String> options = new ArrayList<String>(1);
+            for (Parameter p: params) {
+                if ("option".equalsIgnoreCase(p.getName())) {
+                    options.add(p.getValue());
+                }
+            }
+            data.setOptions(options);
         }
     }
 
@@ -159,6 +175,7 @@ public class TaskResource extends BaseResource {
             }
             directory.accept(item);
         }
+
         return directory;
     }
 

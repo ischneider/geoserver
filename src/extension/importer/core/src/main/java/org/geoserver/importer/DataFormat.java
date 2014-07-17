@@ -122,4 +122,20 @@ public abstract class DataFormat implements Serializable {
 
     public abstract List<ImportTask> list(ImportData data, Catalog catalog, ProgressMonitor monitor) 
         throws IOException;
+
+    /**
+     * Support format specific final tasks.
+     * @param task the task to finish
+     */
+    public void finish(ImportTask task) {
+        // do nothing
+    }
+
+    /** 
+     * Support format specific preparations directly before importing.
+     * @param task 
+     */
+    public void prepare(ImportTask task) {
+        // do nothing
+    }
 }
