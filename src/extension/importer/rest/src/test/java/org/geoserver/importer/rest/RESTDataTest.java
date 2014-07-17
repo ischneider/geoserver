@@ -25,6 +25,13 @@ import org.apache.commons.httpclient.methods.PostMethod;
 import org.apache.commons.httpclient.methods.multipart.FilePart;
 import org.apache.commons.httpclient.methods.multipart.MultipartRequestEntity;
 import org.apache.commons.httpclient.methods.multipart.Part;
+
+import static org.junit.Assert.fail;
+
+import java.io.FileInputStream;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import org.geoserver.catalog.Catalog;
 import org.geoserver.catalog.DataStoreInfo;
 import org.geoserver.catalog.LayerInfo;
@@ -459,7 +466,11 @@ public class RESTDataTest extends ImporterTestSupport {
         req.setBodyContent(payload);
 
         MockHttpServletResponse resp = dispatch(req);
-        assertEquals(201, resp.getStatusCode());
+        if (resp.getStatusCode() != 201) {
+            // since we read the stream, build the assert message after checking status
+            String msg = "expected 201, got " + resp.getStatusCode() + " : " + resp.getOutputStreamContent();
+            fail(msg);
+        }
         assertNotNull( resp.getHeader( "Location") );
 
         assertTrue(resp.getHeader("Location").matches(".*/imports/"+imp+"/tasks/\\d"));
