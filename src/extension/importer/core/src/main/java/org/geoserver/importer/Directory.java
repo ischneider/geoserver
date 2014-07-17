@@ -385,18 +385,16 @@ public class Directory extends FileData {
         }
     }
 
-    public void accept(FileItem item) throws Exception {
+    public void accept(FileItem item) throws IOException {
         File dest = child(item.getName());
-        item.write(dest);
 
         try {
-            unpack(dest);
-        } 
-        catch (IOException e) {
-            // problably should delete on error
-            LOGGER.warning("Possible invalid file uploaded to " + dest.getAbsolutePath());
-            throw e;
+            item.write(dest);
+        } catch (Exception e) {
+            throw new IOException("Error writing uploaded file");
         }
+
+        unpack(dest);
     }
     
     public void archive(File output) throws IOException {

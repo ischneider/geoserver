@@ -10,21 +10,14 @@ import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.List;
 
-import org.geoserver.rest.AbstractResource;
-import org.geoserver.rest.RestletException;
 import org.geoserver.rest.format.DataFormat;
 import org.geoserver.rest.format.StreamDataFormat;
-import org.geoserver.importer.Directory;
-import org.geoserver.importer.ImportContext;
 import org.geoserver.importer.ImportData;
 import org.geoserver.importer.ImportTask;
 import org.geoserver.importer.Importer;
-import org.geoserver.importer.rest.ImportResource.ImportContextJSONFormat;
 import org.restlet.data.MediaType;
 import org.restlet.data.Request;
 import org.restlet.data.Response;
-import org.restlet.data.Status;
-import org.restlet.resource.Representation;
 
 public class DataResource extends BaseResource {
 
@@ -40,7 +33,7 @@ public class DataResource extends BaseResource {
     }
 
     @Override
-    public void handleGet() {
+    public void handleGetInternal() {
         DataFormat formatGet = getFormatGet();
         if (formatGet == null) {
             formatGet = new ImportDataJSONFormat(MediaType.APPLICATION_JSON);
