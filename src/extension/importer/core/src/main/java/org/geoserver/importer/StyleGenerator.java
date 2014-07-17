@@ -137,11 +137,15 @@ public class StyleGenerator {
     }
     
     public static String findUniqueStyleName(Catalog catalog, ResourceInfo resource) {
-        String styleName = resource.getStore().getWorkspace().getName() + "_" + resource.getName();
+        return findUniqueStyleName(catalog, resource.getStore().getWorkspace().getName(), resource.getName());
+    }
+
+    public static String findUniqueStyleName(Catalog catalog, String workspace, String name) {
+        String styleName = workspace + "_" + name;
         StyleInfo style = catalog.getStyleByName(styleName);
         int i = 1;
         while(style != null) {
-            styleName = resource.getStore().getWorkspace().getName() + "_" + resource.getName() + i;
+            styleName = workspace + "_" + name + i;
             style = catalog.getStyleByName(styleName);
             i++;
         }

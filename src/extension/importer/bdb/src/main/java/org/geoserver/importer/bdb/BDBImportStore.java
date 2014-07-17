@@ -4,6 +4,8 @@
  */
 package org.geoserver.importer.bdb;
 
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -41,7 +43,7 @@ import com.sleepycat.je.Sequence;
 import com.sleepycat.je.SequenceConfig;
 import com.sleepycat.je.StatsConfig;
 import com.sleepycat.je.Transaction;
-import com.sleepycat.je.TransactionConfig;
+import java.util.Map;
 
 /**
  * Import store implementation based on Berkley DB Java Edition.
@@ -77,6 +79,9 @@ public class BDBImportStore implements ImportStore {
     BindingType bindingType = BindingType.SERIAL;
     ImportBinding dbBinding;
     EntryBinding<ImportContext> importBinding;
+    // Place to cache non-serializable metadata. This is mostly used for caching
+    // expensive parse results, such as from KML
+    final Cache<String,Object> taskCache = CacheBuilder.newBuilder().expireAfterWrite(10, TimeUnit.MINUTES).build();
 
     public BDBImportStore(Importer importer) {
         this.importer = importer;
@@ -197,7 +202,15 @@ public class BDBImportStore implements ImportStore {
             return null;
         }
 
-        return importBinding.entryToObject(val);
+        ImportContext context = importBinding.entryToObject(val);
+        for (ImportTask task : context.getTasks()) {
+            String key = context.getId() + "-" + task.getId();
+            Map<Object, Object> md = (Map<Object, Object>) taskCache.getIfPresent(key);
+            if (md != null) {
+                task.getMetadata().putAll(md);
+            }
+        }
+        return context;
     }
 
     ImportContext dettach(ImportContext context) {
@@ -206,6 +219,11 @@ public class BDBImportStore implements ImportStore {
             StoreInfo store = task.getStore();
             if (store != null && store.getId() != null) {
                 task.setStore(catalog.detach(store));
+            }
+            Map<Object, Object> md = task.getMetadata();
+            if (!md.isEmpty()) {
+                String key = context.getId() + "-" + task.getId();
+                taskCache.put(key, md);
             }
         }
         return context;
